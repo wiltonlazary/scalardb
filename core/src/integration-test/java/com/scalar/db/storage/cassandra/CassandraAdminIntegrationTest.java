@@ -80,7 +80,9 @@ public class CassandraAdminIntegrationTest extends AdminIntegrationTestBase {
     props.setProperty(DatabaseConfig.CONTACT_POINTS, CONTACT_POINT);
     props.setProperty(DatabaseConfig.USERNAME, USERNAME);
     props.setProperty(DatabaseConfig.PASSWORD, PASSWORD);
-    admin = new CassandraAdmin(new DatabaseConfig(props));
+    DatabaseConfig config = new DatabaseConfig(props);
+    ClusterManager clusterManager = new ClusterManager(config);
+    admin = new CassandraAdmin(new DatabaseConfig(props),clusterManager);
   }
 
   @AfterClass
