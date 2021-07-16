@@ -1,5 +1,8 @@
 package com.scalar.db.storage.cassandra;
 
+
+import com.datastax.driver.core.schemabuilder.CreateKeyspace;
+import com.datastax.driver.core.schemabuilder.SchemaBuilder;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.inject.Inject;
 import com.scalar.db.api.DistributedStorageAdmin;
@@ -8,16 +11,19 @@ import com.scalar.db.api.TableMetadata;
 import com.scalar.db.config.DatabaseConfig;
 import com.scalar.db.exception.storage.ExecutionException;
 import com.scalar.db.exception.storage.StorageRuntimeException;
+import com.scalar.db.rpc.CreateTableRequest;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import javax.annotation.concurrent.ThreadSafe;
 
 @ThreadSafe
 public class CassandraAdmin implements DistributedStorageAdmin {
 
   public static final String NETWORK_STRATEGY = "network-strategy";
-  public static final String SIMPLE_STRATEGY = "SimpleStrategy";
-  public static final String NETWORK_TOPOGOLY_STRATEGY = "NetworkTopologyStrategy";
+  public static final String COMPACTION_STRATEGY = "compaction-strategy";
   public static final String REPLICATION_FACTOR = "replication_factor";
   private final ClusterManager clusterManager;
   private final CassandraTableMetadataManager metadataManager;
@@ -44,7 +50,7 @@ public class CassandraAdmin implements DistributedStorageAdmin {
       throws ExecutionException {
     // TODO Should the metatadaManager be populated as well
     createNamespace(namespace, options);
-    createTableInternal(namespace, table, metadata);
+    createTableInternal(namespace, table, metadata, options);
     createSecondaryIndex(namespace, table, metadata);
     throw new UnsupportedOperationException("implement later");
   }
@@ -75,21 +81,23 @@ public class CassandraAdmin implements DistributedStorageAdmin {
   @VisibleForTesting
   void createNamespace(String namespace, Map<String, String> options) throws ExecutionException {
     StringBuilder sb = new StringBuilder();
+    CreateKeyspace query = SchemaBuilder.createKeyspace(fullNamespace(namespace)).ifNotExists();
     sb.append(
         String.format(
             "CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = ", fullNamespace(namespace)));
     String replicationFactor = options.getOrDefault(REPLICATION_FACTOR, "1");
-    String networkStrategy = options.getOrDefault(NETWORK_STRATEGY, SIMPLE_STRATEGY);
-    if (networkStrategy.equals(SIMPLE_STRATEGY)) {
-      sb.append(
-          String.format(
-              "{'class' : 'SimpleStrategy', 'replication_factor' : %s };", replicationFactor));
-    } else if (networkStrategy.equals(NETWORK_TOPOGOLY_STRATEGY)) {
+    CassandraNetworkStrategy networkStrategy =
+        options.containsKey(NETWORK_STRATEGY)
+            ? CassandraNetworkStrategy.fromString(options.get(NETWORK_STRATEGY))
+            : CassandraNetworkStrategy.SIMPLE_STRATEGY;
+    Map<String, String> replicationOptions = new HashMap<>();
+    if (networkStrategy == CassandraNetworkStrategy.SIMPLE_STRATEGY) {
+       replicationOptions.put("class", CassandraNetworkStrategy.SIMPLE_STRATEGY.toString());
+       replicationOptions.put("replication_factor", replicationFactor);
+    } else if (networkStrategy == CassandraNetworkStrategy.NETWORK_TOPOLOGY_STRATEGY) {
       sb.append(
           String.format(
               "{'class' : 'NetworkTopologyStrategy', 'dc1_name' : %s };", replicationFactor));
-    } else {
-      throw new IllegalArgumentException("The network strategy is unknown");
     }
     try {
       clusterManager.getSession().execute(sb.toString());
@@ -99,11 +107,13 @@ public class CassandraAdmin implements DistributedStorageAdmin {
   }
 
   @VisibleForTesting
-  void createTableInternal(String namespace, String table, TableMetadata metadata)
+  void createTableInternal(
+      String namespace, String table, TableMetadata metadata, Map<String, String> options)
       throws ExecutionException {
+
     StringBuilder sb = new StringBuilder();
     sb.append(
-        String.format("CREATE TABLE [IF NOT EXISTS] %s.%s (", fullNamespace(namespace), table));
+        String.format("CREATE TABLE IF NOT EXISTS %s.%s (", fullNamespace(namespace), table));
     boolean isCompoundKey =
         metadata.getPartitionKeyNames().size() + metadata.getClusteringKeyNames().size() > 1;
     for (String columnName : metadata.getColumnNames()) {
@@ -132,16 +142,7 @@ public class CassandraAdmin implements DistributedStorageAdmin {
       }
     }
     sb.append(")");
-    StringBuilder clusteringOrderStatement = new StringBuilder();
-    for (String clusteringKeyName : metadata.getClusteringKeyNames()) {
-      Order ckOrder = metadata.getClusteringOrder(clusteringKeyName);
-      if (ckOrder != null) {
-        clusteringOrderStatement.append(String.format("%s %s", clusteringKeyName, ckOrder));
-      }
-    }
-    if (clusteringOrderStatement.length() > 1) {
-      sb.append(String.format("WITH CLUSTERING ORDER BY (%s)", clusteringOrderStatement));
-    }
+    sb.append(prepareTableOptions(metadata, options));
     sb.append(";");
     try {
       clusterManager.getSession().execute(sb.toString());
@@ -149,6 +150,36 @@ public class CassandraAdmin implements DistributedStorageAdmin {
       throw new ExecutionException(
           String.format("creating the table %s.%s failed", namespace, table), e);
     }
+  }
+
+  private String prepareTableOptions(TableMetadata metadata, Map<String, String> options) {
+    StringBuilder tableOptionsBuilder = new StringBuilder();
+    StringBuilder clusteringOrderStatement = new StringBuilder();
+    for (String clusteringKeyName : metadata.getClusteringKeyNames()) {
+      Order ckOrder = metadata.getClusteringOrder(clusteringKeyName);
+      if (ckOrder != null) {
+        clusteringOrderStatement.append(String.format("%s %s", clusteringKeyName, ckOrder));
+      }
+    }
+    Set<String> tablesOptions = new LinkedHashSet<>();
+    if (clusteringOrderStatement.length() > 1) {
+      tablesOptions.add(String.format("WITH CLUSTERING ORDER BY (%s)", clusteringOrderStatement));
+    }
+    CassandraCompactionStrategy compactionStrategy =
+        options.containsKey(COMPACTION_STRATEGY)
+            ? CassandraCompactionStrategy.fromString(options.get(COMPACTION_STRATEGY))
+            : null;
+    if (compactionStrategy != null) {
+      tablesOptions.add(
+          String.format("compaction = { 'class' : '%s' }", compactionStrategy.toString()));
+    }
+
+    if (!tablesOptions.isEmpty()) {
+      tableOptionsBuilder.append(" WITH ");
+      tableOptionsBuilder.append(String.join(" AND ", tablesOptions));
+    }
+
+    return tableOptionsBuilder.toString();
   }
 
   @VisibleForTesting

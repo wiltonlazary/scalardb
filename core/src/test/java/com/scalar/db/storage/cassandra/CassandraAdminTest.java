@@ -4,8 +4,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.datastax.driver.core.Session;
+import com.scalar.db.api.TableMetadata;
 import com.scalar.db.config.DatabaseConfig;
 import com.scalar.db.exception.storage.ExecutionException;
+import com.scalar.db.io.DataType;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -79,12 +81,13 @@ public class CassandraAdminTest {
   }
 
   @Test
-  public void createNamespace_UseSimpleStrategy_ShouldExecuteCreateStatement()
+  public void createNamespace_UseSimpleStrategy_ShouldExecuteCreateKeyspaceStatement()
       throws ExecutionException {
     // Arrange
     String namespace = "sample_ns";
     Map<String, String> options = new HashMap<>();
-    options.put(CassandraAdmin.NETWORK_STRATEGY, CassandraAdmin.SIMPLE_STRATEGY);
+    options.put(
+        CassandraAdmin.NETWORK_STRATEGY, CassandraNetworkStrategy.SIMPLE_STRATEGY.toString());
     options.put(CassandraAdmin.REPLICATION_FACTOR, "3");
     // Act
     cassandraAdmin.createNamespace(namespace, options);
@@ -96,12 +99,14 @@ public class CassandraAdminTest {
   }
 
   @Test
-  public void createNamespace_UseNetworkTopologyStrategy_ShouldExecuteCreateStatement()
+  public void createNamespace_UseNetworkTopologyStrategy_ShouldExecuteCreateKeyspaceStatement()
       throws ExecutionException {
     // Arrange
     String namespace = "sample_ns";
     Map<String, String> options = new HashMap<>();
-    options.put(CassandraAdmin.NETWORK_STRATEGY, CassandraAdmin.NETWORK_TOPOGOLY_STRATEGY);
+    options.put(
+        CassandraAdmin.NETWORK_STRATEGY,
+        CassandraNetworkStrategy.NETWORK_TOPOLOGY_STRATEGY.toString());
     options.put(CassandraAdmin.REPLICATION_FACTOR, "5");
     // Act
     cassandraAdmin.createNamespace(namespace, options);
@@ -113,8 +118,9 @@ public class CassandraAdminTest {
   }
 
   @Test
-  public void createNamespace_WithoutStrategyNorReplicationFactor_ShouldExecuteCreateStatement()
-      throws ExecutionException {
+  public void
+      createNamespace_WithoutStrategyNorReplicationFactor_ShouldExecuteCreateKeyspaceStatement()
+          throws ExecutionException {
     // Arrange
     String namespace = "sample_ns";
     Map<String, String> options = new HashMap<>();
@@ -127,5 +133,26 @@ public class CassandraAdminTest {
             "CREATE KEYSPACE IF NOT EXISTS sample_prefix_sample_ns WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1 };");
   }
 
+  @Test
+  public void createTableInternal_ShouldExecuteCreateTableStatement() throws ExecutionException {
+    String namespace = "sample_ns";
+    String table = "sample_table";
+    TableMetadata tableMetadata =
+        TableMetadata.newBuilder()
+            .addPartitionKey("c1")
+            .addClusteringKey("c4")
+            .addColumn("c1", DataType.INT)
+            .addColumn("c2", DataType.TEXT)
+            .addColumn("c3", DataType.BLOB)
+            .addColumn("c4", DataType.INT)
+            .addColumn("c5", DataType.BOOLEAN)
+            .addSecondaryIndex("c2")
+            .addSecondaryIndex("c4")
+            .build();
+    // Assert
+//    cassandraAdmin.createTableInternal(namespace, table, tableMetadata);
 
+    //
+    verify(cassandraSession).execute("bar");
+  }
 }
