@@ -131,4 +131,9 @@ public abstract class AdminIntegrationTestBase {
     TableMetadata tableMetadata = admin.getTableMetadata("wrong_ns", "wrong_table");
     assertThat(tableMetadata).isNull();
   }
+
+  @Test
+  public void createTable_CorrectTableGiven_ShouldBeCreated() throws ExecutionException {
+
+  }
 }

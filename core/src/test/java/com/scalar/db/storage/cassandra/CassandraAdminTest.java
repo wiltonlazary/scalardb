@@ -4,11 +4,14 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.datastax.driver.core.Session;
+import com.datastax.driver.core.schemabuilder.KeyspaceOptions;
+import com.datastax.driver.core.schemabuilder.SchemaBuilder;
 import com.scalar.db.api.TableMetadata;
 import com.scalar.db.config.DatabaseConfig;
 import com.scalar.db.exception.storage.ExecutionException;
 import com.scalar.db.io.DataType;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import org.assertj.core.api.Assertions;
@@ -19,6 +22,7 @@ import org.mockito.MockitoAnnotations;
 
 public class CassandraAdminTest {
 
+  private static final String SAMPLE_PREFIX = "sample_prefix_";
   @Mock CassandraTableMetadataManager metadataManager;
   @Mock ClusterManager clusterManager;
   @Mock DatabaseConfig config;
@@ -28,7 +32,7 @@ public class CassandraAdminTest {
   @Before
   public void setUp() {
     MockitoAnnotations.initMocks(this);
-    when(config.getNamespacePrefix()).thenReturn(Optional.of("sample_prefix_"));
+    when(config.getNamespacePrefix()).thenReturn(Optional.of(SAMPLE_PREFIX));
     when(clusterManager.getSession()).thenReturn(cassandraSession);
     cassandraAdmin = new CassandraAdmin(config, clusterManager);
   }
@@ -93,9 +97,15 @@ public class CassandraAdminTest {
     cassandraAdmin.createNamespace(namespace, options);
 
     // Assert
-    verify(cassandraSession)
-        .execute(
-            "CREATE KEYSPACE IF NOT EXISTS sample_prefix_sample_ns WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 3 };");
+    Map<String, Object> replicationOptions = new LinkedHashMap<>();
+    replicationOptions.put("class", CassandraNetworkStrategy.SIMPLE_STRATEGY.toString());
+    replicationOptions.put("replication_factor", "3");
+    KeyspaceOptions query =
+        SchemaBuilder.createKeyspace(SAMPLE_PREFIX + namespace)
+            .ifNotExists()
+            .with()
+            .replication(replicationOptions);
+    verify(cassandraSession).execute(query.getQueryString());
   }
 
   @Test
@@ -112,9 +122,15 @@ public class CassandraAdminTest {
     cassandraAdmin.createNamespace(namespace, options);
 
     // Assert
-    verify(cassandraSession)
-        .execute(
-            "CREATE KEYSPACE IF NOT EXISTS sample_prefix_sample_ns WITH REPLICATION = {'class' : 'NetworkTopologyStrategy', 'dc1_name' : 5 };");
+    Map<String, Object> replicationOptions = new LinkedHashMap<>();
+    replicationOptions.put("class", CassandraNetworkStrategy.NETWORK_TOPOLOGY_STRATEGY.toString());
+    replicationOptions.put("dc1_name", "5");
+    KeyspaceOptions query =
+        SchemaBuilder.createKeyspace(SAMPLE_PREFIX + namespace)
+            .ifNotExists()
+            .with()
+            .replication(replicationOptions);
+    verify(cassandraSession).execute(query.getQueryString());
   }
 
   @Test
@@ -128,9 +144,16 @@ public class CassandraAdminTest {
     cassandraAdmin.createNamespace(namespace, options);
 
     // Assert
-    verify(cassandraSession)
-        .execute(
-            "CREATE KEYSPACE IF NOT EXISTS sample_prefix_sample_ns WITH REPLICATION = {'class' : 'SimpleStrategy', 'replication_factor' : 1 };");
+    Map<String, Object> replicationOptions = new LinkedHashMap<>();
+    replicationOptions.put("class", CassandraNetworkStrategy.SIMPLE_STRATEGY.toString());
+    replicationOptions.put("replication_factor", "1");
+    KeyspaceOptions query =
+        SchemaBuilder.createKeyspace(SAMPLE_PREFIX + namespace)
+            .ifNotExists()
+            .with()
+            .replication(replicationOptions);
+
+    verify(cassandraSession).execute(query.getQueryString());
   }
 
   @Test
@@ -150,9 +173,9 @@ public class CassandraAdminTest {
             .addSecondaryIndex("c4")
             .build();
     // Assert
-//    cassandraAdmin.createTableInternal(namespace, table, tableMetadata);
+    //    cassandraAdmin.createTableInternal(namespace, table, tableMetadata);
 
     //
-    verify(cassandraSession).execute("bar");
+    //    verify(cassandraSession).execute("bar");
   }
 }

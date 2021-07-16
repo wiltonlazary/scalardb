@@ -1,6 +1,5 @@
 package com.scalar.db.storage.cassandra;
 
-
 import com.datastax.driver.core.schemabuilder.CreateKeyspace;
 import com.datastax.driver.core.schemabuilder.SchemaBuilder;
 import com.google.common.annotations.VisibleForTesting;
@@ -11,8 +10,7 @@ import com.scalar.db.api.TableMetadata;
 import com.scalar.db.config.DatabaseConfig;
 import com.scalar.db.exception.storage.ExecutionException;
 import com.scalar.db.exception.storage.StorageRuntimeException;
-import com.scalar.db.rpc.CreateTableRequest;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
@@ -80,27 +78,26 @@ public class CassandraAdmin implements DistributedStorageAdmin {
 
   @VisibleForTesting
   void createNamespace(String namespace, Map<String, String> options) throws ExecutionException {
-    StringBuilder sb = new StringBuilder();
     CreateKeyspace query = SchemaBuilder.createKeyspace(fullNamespace(namespace)).ifNotExists();
-    sb.append(
-        String.format(
-            "CREATE KEYSPACE IF NOT EXISTS %s WITH REPLICATION = ", fullNamespace(namespace)));
     String replicationFactor = options.getOrDefault(REPLICATION_FACTOR, "1");
     CassandraNetworkStrategy networkStrategy =
         options.containsKey(NETWORK_STRATEGY)
             ? CassandraNetworkStrategy.fromString(options.get(NETWORK_STRATEGY))
             : CassandraNetworkStrategy.SIMPLE_STRATEGY;
-    Map<String, String> replicationOptions = new HashMap<>();
+    Map<String, Object> replicationOptions = new LinkedHashMap<>();
     if (networkStrategy == CassandraNetworkStrategy.SIMPLE_STRATEGY) {
-       replicationOptions.put("class", CassandraNetworkStrategy.SIMPLE_STRATEGY.toString());
-       replicationOptions.put("replication_factor", replicationFactor);
+      replicationOptions.put("class", CassandraNetworkStrategy.SIMPLE_STRATEGY.toString());
+      replicationOptions.put("replication_factor", replicationFactor);
     } else if (networkStrategy == CassandraNetworkStrategy.NETWORK_TOPOLOGY_STRATEGY) {
-      sb.append(
-          String.format(
-              "{'class' : 'NetworkTopologyStrategy', 'dc1_name' : %s };", replicationFactor));
+      replicationOptions.put(
+          "class", CassandraNetworkStrategy.NETWORK_TOPOLOGY_STRATEGY.toString());
+      replicationOptions.put("dc1_name", replicationFactor);
     }
+
     try {
-      clusterManager.getSession().execute(sb.toString());
+      clusterManager
+          .getSession()
+          .execute(query.with().replication(replicationOptions).getQueryString());
     } catch (RuntimeException e) {
       throw new ExecutionException(String.format("creating the %s namespace failed", namespace), e);
     }
@@ -112,8 +109,7 @@ public class CassandraAdmin implements DistributedStorageAdmin {
       throws ExecutionException {
 
     StringBuilder sb = new StringBuilder();
-    sb.append(
-        String.format("CREATE TABLE IF NOT EXISTS %s.%s (", fullNamespace(namespace), table));
+    sb.append(String.format("CREATE TABLE IF NOT EXISTS %s.%s (", fullNamespace(namespace), table));
     boolean isCompoundKey =
         metadata.getPartitionKeyNames().size() + metadata.getClusteringKeyNames().size() > 1;
     for (String columnName : metadata.getColumnNames()) {
