@@ -1,7 +1,11 @@
 package com.scalar.db.storage.cassandra;
 
+import com.datastax.driver.core.schemabuilder.Create;
 import com.datastax.driver.core.schemabuilder.CreateKeyspace;
 import com.datastax.driver.core.schemabuilder.SchemaBuilder;
+import com.datastax.driver.core.schemabuilder.SchemaBuilder.Direction;
+import com.datastax.driver.core.schemabuilder.SchemaStatement;
+import com.datastax.driver.core.schemabuilder.TableOptions;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.inject.Inject;
 import com.scalar.db.api.DistributedStorageAdmin;
@@ -11,7 +15,6 @@ import com.scalar.db.config.DatabaseConfig;
 import com.scalar.db.exception.storage.ExecutionException;
 import com.scalar.db.exception.storage.StorageRuntimeException;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -47,9 +50,10 @@ public class CassandraAdmin implements DistributedStorageAdmin {
       String namespace, String table, TableMetadata metadata, Map<String, String> options)
       throws ExecutionException {
     // TODO Should the metatadaManager be populated as well
-    createNamespace(namespace, options);
-    createTableInternal(namespace, table, metadata, options);
-    createSecondaryIndex(namespace, table, metadata);
+    String fullNamespace = fullNamespace(namespace);
+    createNamespace(fullNamespace, options);
+    createTableInternal(fullNamespace, table, metadata, options);
+    createSecondaryIndex(fullNamespace, table, metadata.getSecondaryIndexNames());
     throw new UnsupportedOperationException("implement later");
   }
 
@@ -77,8 +81,9 @@ public class CassandraAdmin implements DistributedStorageAdmin {
   }
 
   @VisibleForTesting
-  void createNamespace(String namespace, Map<String, String> options) throws ExecutionException {
-    CreateKeyspace query = SchemaBuilder.createKeyspace(fullNamespace(namespace)).ifNotExists();
+  void createNamespace(String fullNamespace, Map<String, String> options)
+      throws ExecutionException {
+    CreateKeyspace query = SchemaBuilder.createKeyspace(fullNamespace).ifNotExists();
     String replicationFactor = options.getOrDefault(REPLICATION_FACTOR, "1");
     CassandraNetworkStrategy networkStrategy =
         options.containsKey(NETWORK_STRATEGY)
@@ -99,100 +104,77 @@ public class CassandraAdmin implements DistributedStorageAdmin {
           .getSession()
           .execute(query.with().replication(replicationOptions).getQueryString());
     } catch (RuntimeException e) {
-      throw new ExecutionException(String.format("creating the %s namespace failed", namespace), e);
+      throw new ExecutionException(
+          String.format("creating the %s namespace failed", fullNamespace), e);
     }
   }
 
   @VisibleForTesting
   void createTableInternal(
-      String namespace, String table, TableMetadata metadata, Map<String, String> options)
+      String fullNamespace, String table, TableMetadata metadata, Map<String, String> options)
       throws ExecutionException {
-
-    StringBuilder sb = new StringBuilder();
-    sb.append(String.format("CREATE TABLE IF NOT EXISTS %s.%s (", fullNamespace(namespace), table));
-    boolean isCompoundKey =
-        metadata.getPartitionKeyNames().size() + metadata.getClusteringKeyNames().size() > 1;
-    for (String columnName : metadata.getColumnNames()) {
-      sb.append(String.format("%s %s", columnName, metadata.getColumnDataType(columnName)));
-      // If the key is not a compound key
-      if (!isCompoundKey) {
-        sb.append(" PRIMARY KEY");
-      }
+    Create createTable = SchemaBuilder.createTable(fullNamespace, table);
+    for (String pk : metadata.getPartitionKeyNames()) {
+      createTable =
+          createTable.addPartitionKey(pk, metadata.getColumnDataType(pk).toCassandraDataType());
     }
-    sb.append(",");
-    // Add compound key statement
-    if (isCompoundKey) {
-      // TODO test composite primary key without partition key
-      // TODO test single primary key
-      // TODO test
-      String primaryKey;
-      if (metadata.getPartitionKeyNames().size() > 1) {
-        primaryKey = String.format("(%s)", String.join(", ", metadata.getPartitionKeyNames()));
-      } else {
-        primaryKey = metadata.getPartitionKeyNames().stream().findFirst().get();
-      }
-      sb.append("PRIMARY KEY").append(primaryKey);
-      String clusteringKeys = String.join(", ", metadata.getClusteringKeyNames());
-      if (!clusteringKeys.isEmpty()) {
-        sb.append(String.format(", %s)", clusteringKeys));
-      }
+    for (String ck : metadata.getClusteringKeyNames()) {
+      createTable =
+          createTable.addClusteringColumn(ck, metadata.getColumnDataType(ck).toCassandraDataType());
     }
-    sb.append(")");
-    sb.append(prepareTableOptions(metadata, options));
-    sb.append(";");
-    try {
-      clusterManager.getSession().execute(sb.toString());
-    } catch (RuntimeException e) {
-      throw new ExecutionException(
-          String.format("creating the table %s.%s failed", namespace, table), e);
-    }
-  }
-
-  private String prepareTableOptions(TableMetadata metadata, Map<String, String> options) {
-    StringBuilder tableOptionsBuilder = new StringBuilder();
-    StringBuilder clusteringOrderStatement = new StringBuilder();
-    for (String clusteringKeyName : metadata.getClusteringKeyNames()) {
-      Order ckOrder = metadata.getClusteringOrder(clusteringKeyName);
-      if (ckOrder != null) {
-        clusteringOrderStatement.append(String.format("%s %s", clusteringKeyName, ckOrder));
+    for (String column : metadata.getColumnNames()) {
+      if (metadata.getPartitionKeyNames().contains(column)
+          || metadata.getClusteringKeyNames().contains(column)) {
+        continue;
       }
+      createTable =
+          createTable.addColumn(column, metadata.getColumnDataType(column).toCassandraDataType());
     }
-    Set<String> tablesOptions = new LinkedHashSet<>();
-    if (clusteringOrderStatement.length() > 1) {
-      tablesOptions.add(String.format("WITH CLUSTERING ORDER BY (%s)", clusteringOrderStatement));
+    Create.Options createTableWithOptions = createTable.withOptions();
+    for (String ck : metadata.getClusteringKeyNames()) {
+      Direction direction =
+          metadata.getClusteringOrder(ck) == Order.ASC ? Direction.ASC : Direction.DESC;
+      createTableWithOptions = createTableWithOptions.clusteringOrder(ck, direction);
     }
     CassandraCompactionStrategy compactionStrategy =
-        options.containsKey(COMPACTION_STRATEGY)
-            ? CassandraCompactionStrategy.fromString(options.get(COMPACTION_STRATEGY))
-            : null;
-    if (compactionStrategy != null) {
-      tablesOptions.add(
-          String.format("compaction = { 'class' : '%s' }", compactionStrategy.toString()));
-    }
+        CassandraCompactionStrategy.valueOf(
+            options.getOrDefault(COMPACTION_STRATEGY, CassandraCompactionStrategy.STCS.toString()));
 
-    if (!tablesOptions.isEmpty()) {
-      tableOptionsBuilder.append(" WITH ");
-      tableOptionsBuilder.append(String.join(" AND ", tablesOptions));
+    TableOptions.CompactionOptions strategy;
+    switch (compactionStrategy) {
+      case LCS:
+        strategy = SchemaBuilder.leveledStrategy();
+        break;
+      case TWCS:
+        strategy = SchemaBuilder.timeWindowCompactionStrategy();
+        break;
+      default:
+        strategy = SchemaBuilder.sizedTieredStategy();
     }
+    createTableWithOptions = createTableWithOptions.compactionOptions(strategy);
 
-    return tableOptionsBuilder.toString();
+    try {
+      clusterManager.getSession().execute(createTableWithOptions.getQueryString());
+    } catch (RuntimeException e) {
+      throw new ExecutionException(
+          String.format("creating the table %s.%s failed", fullNamespace, table), e);
+    }
   }
 
   @VisibleForTesting
-  void createSecondaryIndex(String namespace, String table, TableMetadata metadata)
+  void createSecondaryIndex(String fullNamespace, String table, Set<String> secondaryIndexNames)
       throws ExecutionException {
-    for (String index : metadata.getSecondaryIndexNames()) {
+    for (String index : secondaryIndexNames) {
       String indexName =
-          String.format("%s_%s_%s", table, DistributedStorageAdmin.INDEX_PREFIX, table);
-      // CREATE INDEX sample_table_index_c2 ON sample_db.sample_table (c2);
-      String indexCreationStatement =
-          String.format("CREATE INDEX %s ON %s.%s (%s);", indexName, namespace, table, index);
+          String.format("%s_%s_%s", table, DistributedStorageAdmin.INDEX_PREFIX, index);
+      SchemaStatement createIndex =
+          SchemaBuilder.createIndex(indexName).onTable(fullNamespace, table).andColumn(index);
       try {
-        clusterManager.getSession().execute(indexCreationStatement);
+        clusterManager.getSession().execute(createIndex.getQueryString());
       } catch (RuntimeException e) {
         throw new ExecutionException(
             String.format(
-                "creating the secondary index for %s.%s.%s failed", namespace, table, index),
+                "creating the secondary index for %s.%s.%s failed", fullNamespace, table, index),
             e);
       }
     }
