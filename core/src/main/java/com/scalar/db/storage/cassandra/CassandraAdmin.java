@@ -1,5 +1,6 @@
 package com.scalar.db.storage.cassandra;
 
+import com.datastax.driver.core.querybuilder.QueryBuilder;
 import com.datastax.driver.core.schemabuilder.Create;
 import com.datastax.driver.core.schemabuilder.CreateKeyspace;
 import com.datastax.driver.core.schemabuilder.SchemaBuilder;
@@ -31,7 +32,15 @@ public class CassandraAdmin implements DistributedStorageAdmin {
   private final Optional<String> namespacePrefix;
 
   @Inject
-  public CassandraAdmin(DatabaseConfig config, ClusterManager clusterManager) {
+  public CassandraAdmin(DatabaseConfig config) {
+    clusterManager = new ClusterManager(config);
+    clusterManager.getSession();
+    metadataManager = new CassandraTableMetadataManager(clusterManager);
+    namespacePrefix = config.getNamespacePrefix();
+  }
+
+  @VisibleForTesting
+  CassandraAdmin(DatabaseConfig config, ClusterManager clusterManager) {
     this.clusterManager = clusterManager;
     this.clusterManager.getSession();
     metadataManager = new CassandraTableMetadataManager(clusterManager);
@@ -49,22 +58,34 @@ public class CassandraAdmin implements DistributedStorageAdmin {
   public void createTable(
       String namespace, String table, TableMetadata metadata, Map<String, String> options)
       throws ExecutionException {
-    // TODO Should the metatadaManager be populated as well
     String fullNamespace = fullNamespace(namespace);
     createNamespace(fullNamespace, options);
     createTableInternal(fullNamespace, table, metadata, options);
     createSecondaryIndex(fullNamespace, table, metadata.getSecondaryIndexNames());
-    throw new UnsupportedOperationException("implement later");
   }
 
   @Override
   public void dropTable(String namespace, String table) throws ExecutionException {
-    throw new UnsupportedOperationException("implement later");
+    String dropTableQuery =
+        SchemaBuilder.dropTable(fullNamespace(namespace), table).getQueryString();
+    try {
+      clusterManager.getSession().execute(dropTableQuery);
+    } catch (RuntimeException e) {
+      throw new ExecutionException(
+          String.format("dropping the %s.%s table failed", fullNamespace(namespace), table), e);
+    }
   }
 
   @Override
   public void truncateTable(String namespace, String table) throws ExecutionException {
-    throw new UnsupportedOperationException("implement later");
+    String truncateTableQuery =
+        QueryBuilder.truncate(fullNamespace(namespace), table).getQueryString();
+    try {
+      clusterManager.getSession().execute(truncateTableQuery);
+    } catch (RuntimeException e) {
+      throw new ExecutionException(
+          String.format("truncating the %s.%s table failed", fullNamespace(namespace), table), e);
+    }
   }
 
   @Override
@@ -98,7 +119,6 @@ public class CassandraAdmin implements DistributedStorageAdmin {
           "class", CassandraNetworkStrategy.NETWORK_TOPOLOGY_STRATEGY.toString());
       replicationOptions.put("dc1_name", replicationFactor);
     }
-
     try {
       clusterManager
           .getSession()

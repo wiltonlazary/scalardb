@@ -4,7 +4,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.datastax.driver.core.Session;
-import com.datastax.driver.core.schemabuilder.CreateIndex;
+import com.datastax.driver.core.querybuilder.QueryBuilder;
 import com.datastax.driver.core.schemabuilder.KeyspaceOptions;
 import com.datastax.driver.core.schemabuilder.SchemaBuilder;
 import com.datastax.driver.core.schemabuilder.SchemaBuilder.Direction;
@@ -247,7 +247,8 @@ public class CassandraAdminTest {
   }
 
   @Test
-  public void createSecondaryIndex_WithTwoIndexesNames_ShouldCreateBothIndexes() throws ExecutionException {
+  public void createSecondaryIndex_WithTwoIndexesNames_ShouldCreateBothIndexes()
+      throws ExecutionException {
     // Arrange
     String namespace = "sample_ns";
     String table = "sample_table";
@@ -259,13 +260,45 @@ public class CassandraAdminTest {
     cassandraAdmin.createSecondaryIndex(SAMPLE_PREFIX + namespace, table, indexes);
 
     // Assert
-    SchemaStatement c1IndexStatement = SchemaBuilder.createIndex(table + "_" + CassandraAdmin.INDEX_PREFIX + "_c1")
-        .onTable(SAMPLE_PREFIX + namespace, table).andColumn("c1");
-    SchemaStatement c5IndexStatement = SchemaBuilder.createIndex(table + "_" + CassandraAdmin.INDEX_PREFIX + "_c5")
-        .onTable(SAMPLE_PREFIX + namespace, table).andColumn("c5");
+    SchemaStatement c1IndexStatement =
+        SchemaBuilder.createIndex(table + "_" + CassandraAdmin.INDEX_PREFIX + "_c1")
+            .onTable(SAMPLE_PREFIX + namespace, table)
+            .andColumn("c1");
+    SchemaStatement c5IndexStatement =
+        SchemaBuilder.createIndex(table + "_" + CassandraAdmin.INDEX_PREFIX + "_c5")
+            .onTable(SAMPLE_PREFIX + namespace, table)
+            .andColumn("c5");
     verify(cassandraSession).execute(c1IndexStatement.getQueryString());
     verify(cassandraSession).execute(c5IndexStatement.getQueryString());
   }
 
+  @Test
+  public void dropTable_WithCorrectParameters_ShouldDropTable() throws ExecutionException {
+    // Arrange
+    String namespace = "sample_ns";
+    String table = "sample_table";
 
+    // Act
+    cassandraAdmin.dropTable(namespace, table);
+
+    // Assert
+    String dropTableStatement =
+        SchemaBuilder.dropTable(SAMPLE_PREFIX + namespace, table).getQueryString();
+    verify(cassandraSession).execute(dropTableStatement);
+  }
+
+  @Test
+  public void truncateTable_WithCorrectParameters_ShouldTruncateTable() throws ExecutionException {
+    // Arrange
+    String namespace = "sample_ns";
+    String table = "sample_table";
+
+    // Act
+    cassandraAdmin.truncateTable(namespace, table);
+
+    // Assert
+    String truncateTableStatement =
+        QueryBuilder.truncate(SAMPLE_PREFIX + namespace, table).getQueryString();
+    verify(cassandraSession).execute(truncateTableStatement);
+  }
 }
