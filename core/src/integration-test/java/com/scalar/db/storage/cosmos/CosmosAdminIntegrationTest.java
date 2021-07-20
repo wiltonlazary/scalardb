@@ -42,7 +42,7 @@ public class CosmosAdminIntegrationTest extends AdminIntegrationTestBase {
   @Override
   public void getTableMetadata_CorrectTableGiven_ShouldReturnCorrectClusteringOrders()
       throws ExecutionException {
-    TableMetadata tableMetadata = admin.getTableMetadata(NAMESPACE, TABLE);
+    TableMetadata tableMetadata = admin.getTableMetadata(NAMESPACE, GET_TABLE);
 
     // Fow now, the clustering order is always ASC in the Cosmos DB adapter
     assertThat(tableMetadata.getClusteringOrder(COL_NAME1)).isNull();
@@ -76,7 +76,7 @@ public class CosmosAdminIntegrationTest extends AdminIntegrationTestBase {
 
     // insert metadata
     CosmosTableMetadata metadata = new CosmosTableMetadata();
-    metadata.setId(table(NAMESPACE, TABLE));
+    metadata.setId(table(NAMESPACE, GET_TABLE));
     metadata.setPartitionKeyNames(Arrays.asList(COL_NAME2, COL_NAME1));
     metadata.setClusteringKeyNames(Arrays.asList(COL_NAME4, COL_NAME3));
     metadata.setSecondaryIndexNames(new HashSet<>(Arrays.asList(COL_NAME5, COL_NAME6)));

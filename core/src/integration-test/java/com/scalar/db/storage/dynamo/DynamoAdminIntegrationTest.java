@@ -53,7 +53,7 @@ public class DynamoAdminIntegrationTest extends AdminIntegrationTestBase {
   @Override
   public void getTableMetadata_CorrectTableGiven_ShouldReturnCorrectClusteringOrders()
       throws ExecutionException {
-    TableMetadata tableMetadata = admin.getTableMetadata(NAMESPACE, TABLE);
+    TableMetadata tableMetadata = admin.getTableMetadata(NAMESPACE, GET_TABLE);
 
     // Fow now, the clustering order is always ASC in the DynamoDB adapter
     assertThat(tableMetadata.getClusteringOrder(COL_NAME1)).isNull();
@@ -118,7 +118,7 @@ public class DynamoAdminIntegrationTest extends AdminIntegrationTestBase {
 
     // insert metadata
     Map<String, AttributeValue> values = new HashMap<>();
-    values.put("table", AttributeValue.builder().s(table(NAMESPACE, TABLE)).build());
+    values.put("table", AttributeValue.builder().s(table(NAMESPACE, GET_TABLE)).build());
     values.put(
         "partitionKey",
         AttributeValue.builder()

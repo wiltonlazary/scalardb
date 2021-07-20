@@ -15,6 +15,8 @@ import com.scalar.db.api.TableMetadata;
 import com.scalar.db.config.DatabaseConfig;
 import com.scalar.db.exception.storage.ExecutionException;
 import com.scalar.db.io.DataType;
+import com.scalar.db.storage.cassandra.CassandraAdmin.CompactionStrategy;
+import com.scalar.db.storage.cassandra.CassandraAdmin.NetworkStrategy;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -80,11 +82,12 @@ public class CassandraAdminTest {
   }
 
   @Test
-  public void createNamespace_UnknowNetworkStrategyOption_ShouldThrowIllegalArgumentException() {
+  public void createNamespace_UnknownNetworkStrategyOption_ShouldThrowIllegalArgumentException() {
     // Arrange
     String namespace = "sample_ns";
     Map<String, String> options = new HashMap<>();
     options.put(CassandraAdmin.NETWORK_STRATEGY, "xxx_strategy");
+
     // Act
     // Assert
     Assertions.assertThatThrownBy(() -> cassandraAdmin.createNamespace(namespace, options))
@@ -98,14 +101,15 @@ public class CassandraAdminTest {
     String namespace = "sample_ns";
     Map<String, String> options = new HashMap<>();
     options.put(
-        CassandraAdmin.NETWORK_STRATEGY, CassandraNetworkStrategy.SIMPLE_STRATEGY.toString());
+        CassandraAdmin.NETWORK_STRATEGY, NetworkStrategy.SIMPLE_STRATEGY.toString());
     options.put(CassandraAdmin.REPLICATION_FACTOR, "3");
+
     // Act
     cassandraAdmin.createNamespace(SAMPLE_PREFIX + namespace, options);
 
     // Assert
     Map<String, Object> replicationOptions = new LinkedHashMap<>();
-    replicationOptions.put("class", CassandraNetworkStrategy.SIMPLE_STRATEGY.toString());
+    replicationOptions.put("class", NetworkStrategy.SIMPLE_STRATEGY.toString());
     replicationOptions.put("replication_factor", "3");
     KeyspaceOptions query =
         SchemaBuilder.createKeyspace(SAMPLE_PREFIX + namespace)
@@ -123,14 +127,14 @@ public class CassandraAdminTest {
     Map<String, String> options = new HashMap<>();
     options.put(
         CassandraAdmin.NETWORK_STRATEGY,
-        CassandraNetworkStrategy.NETWORK_TOPOLOGY_STRATEGY.toString());
+        NetworkStrategy.NETWORK_TOPOLOGY_STRATEGY.toString());
     options.put(CassandraAdmin.REPLICATION_FACTOR, "5");
     // Act
     cassandraAdmin.createNamespace(SAMPLE_PREFIX + namespace, options);
 
     // Assert
     Map<String, Object> replicationOptions = new LinkedHashMap<>();
-    replicationOptions.put("class", CassandraNetworkStrategy.NETWORK_TOPOLOGY_STRATEGY.toString());
+    replicationOptions.put("class", NetworkStrategy.NETWORK_TOPOLOGY_STRATEGY.toString());
     replicationOptions.put("dc1_name", "5");
     KeyspaceOptions query =
         SchemaBuilder.createKeyspace(SAMPLE_PREFIX + namespace)
@@ -142,7 +146,7 @@ public class CassandraAdminTest {
 
   @Test
   public void
-      createNamespace_WithoutStrategyNorReplicationFactor_ShouldExecuteCreateKeyspaceStatement()
+      createNamespace_WithoutStrategyNorReplicationFactor_ShouldExecuteCreateKeyspaceStatementWithSimpleStrategy()
           throws ExecutionException {
     // Arrange
     String namespace = "sample_ns";
@@ -152,7 +156,7 @@ public class CassandraAdminTest {
 
     // Assert
     Map<String, Object> replicationOptions = new LinkedHashMap<>();
-    replicationOptions.put("class", CassandraNetworkStrategy.SIMPLE_STRATEGY.toString());
+    replicationOptions.put("class", NetworkStrategy.SIMPLE_STRATEGY.toString());
     replicationOptions.put("replication_factor", "1");
     KeyspaceOptions query =
         SchemaBuilder.createKeyspace(SAMPLE_PREFIX + namespace)
@@ -224,7 +228,7 @@ public class CassandraAdminTest {
             .addSecondaryIndex("c4")
             .build();
     HashMap<String, String> options = new HashMap<>();
-    options.put(CassandraAdmin.COMPACTION_STRATEGY, CassandraCompactionStrategy.LCS.toString());
+    options.put(CassandraAdmin.COMPACTION_STRATEGY, CompactionStrategy.LCS.toString());
 
     // Act
     cassandraAdmin.createTableInternal(SAMPLE_PREFIX + namespace, table, tableMetadata, options);

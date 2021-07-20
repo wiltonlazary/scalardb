@@ -26,7 +26,7 @@ public class CassandraAdmin implements DistributedStorageAdmin {
 
   public static final String NETWORK_STRATEGY = "network-strategy";
   public static final String COMPACTION_STRATEGY = "compaction-strategy";
-  public static final String REPLICATION_FACTOR = "replication_factor";
+  public static final String REPLICATION_FACTOR = "replication-factor";
   private final ClusterManager clusterManager;
   private final CassandraTableMetadataManager metadataManager;
   private final Optional<String> namespacePrefix;
@@ -74,6 +74,8 @@ public class CassandraAdmin implements DistributedStorageAdmin {
       throw new ExecutionException(
           String.format("dropping the %s.%s table failed", fullNamespace(namespace), table), e);
     }
+
+    //TODO Delete table metadat in the metadata manager
   }
 
   @Override
@@ -106,17 +108,17 @@ public class CassandraAdmin implements DistributedStorageAdmin {
       throws ExecutionException {
     CreateKeyspace query = SchemaBuilder.createKeyspace(fullNamespace).ifNotExists();
     String replicationFactor = options.getOrDefault(REPLICATION_FACTOR, "1");
-    CassandraNetworkStrategy networkStrategy =
+    NetworkStrategy networkStrategy =
         options.containsKey(NETWORK_STRATEGY)
-            ? CassandraNetworkStrategy.fromString(options.get(NETWORK_STRATEGY))
-            : CassandraNetworkStrategy.SIMPLE_STRATEGY;
+            ? NetworkStrategy.fromString(options.get(NETWORK_STRATEGY))
+            : NetworkStrategy.SIMPLE_STRATEGY;
     Map<String, Object> replicationOptions = new LinkedHashMap<>();
-    if (networkStrategy == CassandraNetworkStrategy.SIMPLE_STRATEGY) {
-      replicationOptions.put("class", CassandraNetworkStrategy.SIMPLE_STRATEGY.toString());
+    if (networkStrategy == NetworkStrategy.SIMPLE_STRATEGY) {
+      replicationOptions.put("class", NetworkStrategy.SIMPLE_STRATEGY.toString());
       replicationOptions.put("replication_factor", replicationFactor);
-    } else if (networkStrategy == CassandraNetworkStrategy.NETWORK_TOPOLOGY_STRATEGY) {
+    } else if (networkStrategy == NetworkStrategy.NETWORK_TOPOLOGY_STRATEGY) {
       replicationOptions.put(
-          "class", CassandraNetworkStrategy.NETWORK_TOPOLOGY_STRATEGY.toString());
+          "class", NetworkStrategy.NETWORK_TOPOLOGY_STRATEGY.toString());
       replicationOptions.put("dc1_name", replicationFactor);
     }
     try {
@@ -134,6 +136,7 @@ public class CassandraAdmin implements DistributedStorageAdmin {
       String fullNamespace, String table, TableMetadata metadata, Map<String, String> options)
       throws ExecutionException {
     Create createTable = SchemaBuilder.createTable(fullNamespace, table);
+    //Add columns
     for (String pk : metadata.getPartitionKeyNames()) {
       createTable =
           createTable.addPartitionKey(pk, metadata.getColumnDataType(pk).toCassandraDataType());
@@ -150,15 +153,17 @@ public class CassandraAdmin implements DistributedStorageAdmin {
       createTable =
           createTable.addColumn(column, metadata.getColumnDataType(column).toCassandraDataType());
     }
+    //Add clustering order
     Create.Options createTableWithOptions = createTable.withOptions();
     for (String ck : metadata.getClusteringKeyNames()) {
       Direction direction =
           metadata.getClusteringOrder(ck) == Order.ASC ? Direction.ASC : Direction.DESC;
       createTableWithOptions = createTableWithOptions.clusteringOrder(ck, direction);
     }
-    CassandraCompactionStrategy compactionStrategy =
-        CassandraCompactionStrategy.valueOf(
-            options.getOrDefault(COMPACTION_STRATEGY, CassandraCompactionStrategy.STCS.toString()));
+    //Add compaction strategy
+    CompactionStrategy compactionStrategy =
+        CompactionStrategy.valueOf(
+            options.getOrDefault(COMPACTION_STRATEGY, CompactionStrategy.STCS.toString()));
 
     TableOptions.CompactionOptions strategy;
     switch (compactionStrategy) {
@@ -203,5 +208,40 @@ public class CassandraAdmin implements DistributedStorageAdmin {
   @Override
   public void close() {
     clusterManager.close();
+  }
+
+  public enum CompactionStrategy {
+    STCS,
+    LCS,
+    TWCS
+  }
+
+  public enum NetworkStrategy {
+    SIMPLE_STRATEGY("SimpleStrategy"),
+    NETWORK_TOPOLOGY_STRATEGY("NetworkTopologyStrategy");
+    private final String strategyName;
+
+    /** @param strategyName */
+    NetworkStrategy(final String strategyName) {
+      this.strategyName = strategyName;
+    }
+
+    public static NetworkStrategy fromString(String text) {
+      for (NetworkStrategy strategy : NetworkStrategy.values()) {
+        if (strategy.strategyName.equalsIgnoreCase(text)) {
+          return strategy;
+        }
+      }
+      throw new IllegalArgumentException(
+          String.format("The network strategy %s does not exist", text));
+    }
+
+    /* (non-Javadoc)
+     * @see java.lang.Enum#toString()
+     */
+    @Override
+    public String toString() {
+      return strategyName;
+    }
   }
 }

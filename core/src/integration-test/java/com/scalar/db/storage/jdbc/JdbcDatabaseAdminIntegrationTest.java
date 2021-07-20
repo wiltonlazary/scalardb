@@ -25,7 +25,7 @@ public class JdbcDatabaseAdminIntegrationTest extends AdminIntegrationTestBase {
     testEnv = new TestEnv();
     testEnv.register(
         NAMESPACE,
-        TABLE,
+        GET_TABLE,
         TableMetadata.newBuilder()
             .addColumn(COL_NAME1, DataType.INT)
             .addColumn(COL_NAME2, DataType.TEXT)
