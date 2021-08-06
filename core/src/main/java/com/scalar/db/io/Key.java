@@ -172,6 +172,7 @@ public final class Key implements Comparable<Key>, Iterable<Value<?>> {
     return helper.toString();
   }
 
+  @Nonnull
   @Override
   public Iterator<Value<?>> iterator() {
     return values.iterator();

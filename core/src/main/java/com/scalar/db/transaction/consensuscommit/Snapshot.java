@@ -129,22 +129,18 @@ public class Snapshot {
   public void to(MutationComposer composer) throws CommitConflictException {
     toSerializableWithExtraWrite(composer);
 
-    writeSet
-        .entrySet()
-        .forEach(
-            e -> {
-              TransactionResult result =
-                  readSet.get(e.getKey()) == null ? null : readSet.get(e.getKey()).orElse(null);
-              composer.add(e.getValue(), result);
-            });
-    deleteSet
-        .entrySet()
-        .forEach(
-            e -> {
-              TransactionResult result =
-                  readSet.get(e.getKey()) == null ? null : readSet.get(e.getKey()).orElse(null);
-              composer.add(e.getValue(), result);
-            });
+    writeSet.forEach(
+        (key, value) -> {
+          TransactionResult result =
+              readSet.containsKey(key) ? readSet.get(key).orElse(null) : null;
+          composer.add(value, result);
+        });
+    deleteSet.forEach(
+        (key, value) -> {
+          TransactionResult result =
+              readSet.containsKey(key) ? readSet.get(key).orElse(null) : null;
+          composer.add(value, result);
+        });
   }
 
   private boolean isWriteSetOverlappedWith(Scan scan) {
@@ -214,7 +210,7 @@ public class Snapshot {
         continue;
       }
 
-      if (entry.getValue().isPresent() && PrepareMutationComposer.class.isInstance(composer)) {
+      if (entry.getValue().isPresent() && composer instanceof PrepareMutationComposer) {
         // For existing records, convert a read set into a write set for Serializable. This needs to
         // be done in only prepare phase because the records are treated as written afterwards.
         Put put =
@@ -309,7 +305,7 @@ public class Snapshot {
               .forNamespace(key.getNamespace())
               .forTable(key.getTable());
 
-      Optional<TransactionResult> result = storage.get(get).map(r -> new TransactionResult(r));
+      Optional<TransactionResult> result = storage.get(get).map(TransactionResult::new);
       // Check if a read record is not changed
       if (!result.equals(entry.getValue())) {
         throwExceptionDueToAntiDependency();

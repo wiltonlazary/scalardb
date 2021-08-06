@@ -28,7 +28,7 @@ public class CosmosOperation {
 
     if (operation.getClusteringKey().isPresent()) {
       return operation.getClusteringKey().get().get().stream()
-          .map(v -> v.getName())
+          .map(Value::getName)
           .collect(Collectors.toList())
           .containsAll(metadata.getClusteringKeyNames());
     } else {
@@ -44,13 +44,7 @@ public class CosmosOperation {
   @Nonnull
   public String getConcatenatedPartitionKey() {
     Map<String, Value<?>> keyMap = new HashMap<>();
-    operation
-        .getPartitionKey()
-        .get()
-        .forEach(
-            v -> {
-              keyMap.put(v.getName(), v);
-            });
+    operation.getPartitionKey().get().forEach(v -> keyMap.put(v.getName(), v));
 
     ConcatenationVisitor visitor = new ConcatenationVisitor();
     metadata.getPartitionKeyNames().forEach(name -> keyMap.get(name).accept(visitor));
@@ -66,23 +60,8 @@ public class CosmosOperation {
   @Nonnull
   public String getId() {
     Map<String, Value<?>> keyMap = new HashMap<>();
-    operation
-        .getPartitionKey()
-        .get()
-        .forEach(
-            v -> {
-              keyMap.put(v.getName(), v);
-            });
-    operation
-        .getClusteringKey()
-        .ifPresent(
-            k -> {
-              k.get()
-                  .forEach(
-                      v -> {
-                        keyMap.put(v.getName(), v);
-                      });
-            });
+    operation.getPartitionKey().get().forEach(v -> keyMap.put(v.getName(), v));
+    operation.getClusteringKey().ifPresent(k -> k.get().forEach(v -> keyMap.put(v.getName(), v)));
 
     ConcatenationVisitor visitor = new ConcatenationVisitor();
     Streams.concat(
@@ -92,7 +71,8 @@ public class CosmosOperation {
     return visitor.build();
   }
 
-  public void checkArgument(Class<? extends Operation>... expected) {
+  @SafeVarargs
+  public final void checkArgument(Class<? extends Operation>... expected) {
     for (Class<? extends Operation> e : expected) {
       if (e.isInstance(operation)) {
         return;

@@ -32,7 +32,7 @@ public class StatementHandlerManagerTest {
   @Mock private PutIfNotExists putIfNotExists;
 
   @Before
-  public void setUp() throws Exception {
+  public void setUp() {
     MockitoAnnotations.initMocks(this);
   }
 
@@ -51,14 +51,13 @@ public class StatementHandlerManagerTest {
 
     // Act Assert
     assertThatCode(
-            () -> {
-              StatementHandlerManager.builder()
-                  .select(select)
-                  .insert(insert)
-                  .update(update)
-                  .delete(delete)
-                  .build();
-            })
+            () ->
+                StatementHandlerManager.builder()
+                    .select(select)
+                    .insert(insert)
+                    .update(update)
+                    .delete(delete)
+                    .build())
         .doesNotThrowAnyException();
   }
 
@@ -68,13 +67,12 @@ public class StatementHandlerManagerTest {
 
     // Act Assert
     assertThatThrownBy(
-            () -> {
-              StatementHandlerManager.builder()
-                  .select(select)
-                  .insert(insert)
-                  .update(update)
-                  .build();
-            })
+            () ->
+                StatementHandlerManager.builder()
+                    .select(select)
+                    .insert(insert)
+                    .update(update)
+                    .build())
         .isInstanceOf(IllegalArgumentException.class);
   }
 

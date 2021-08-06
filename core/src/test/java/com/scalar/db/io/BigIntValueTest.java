@@ -225,10 +225,6 @@ public class BigIntValueTest {
   @Test
   public void constructor_NullGiven_ShouldThrowNullPointerException() {
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              new BigIntValue(null, 0);
-            })
-        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> new BigIntValue(null, 0)).isInstanceOf(NullPointerException.class);
   }
 }

@@ -269,10 +269,7 @@ public class TextValueTest {
   @Test
   public void constructor_NullGiven_ShouldThrowNullPointerException() {
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              new TextValue(null, (String) null);
-            })
+    assertThatThrownBy(() -> new TextValue(null, (String) null))
         .isInstanceOf(NullPointerException.class);
   }
 }

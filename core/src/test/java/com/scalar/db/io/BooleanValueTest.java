@@ -160,7 +160,7 @@ public class BooleanValueTest {
     // Arrange
     boolean some = Boolean.TRUE;
     BooleanValue one = new BooleanValue(ANY_NAME, some);
-    Boolean another = Boolean.valueOf(some);
+    Boolean another = some;
 
     // Act
     @SuppressWarnings("EqualsIncompatibleType")
@@ -218,10 +218,6 @@ public class BooleanValueTest {
   @Test
   public void constructor_NullGiven_ShouldThrowNullPointerException() {
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              new BooleanValue(null, true);
-            })
-        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> new BooleanValue(null, true)).isInstanceOf(NullPointerException.class);
   }
 }

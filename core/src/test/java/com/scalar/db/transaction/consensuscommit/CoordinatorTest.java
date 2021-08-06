@@ -2,7 +2,7 @@ package com.scalar.db.transaction.consensuscommit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -74,11 +74,7 @@ public class CoordinatorTest {
     when(storage.get(any(Get.class))).thenThrow(toThrow);
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              coordinator.getState(id);
-            })
-        .isInstanceOf(CoordinatorException.class);
+    assertThatThrownBy(() -> coordinator.getState(id)).isInstanceOf(CoordinatorException.class);
   }
 
   @Test
@@ -115,8 +111,8 @@ public class CoordinatorTest {
         .isEqualTo(Attribute.toCreatedAtValue(current));
     assertThat(put.getConsistency()).isEqualTo(Consistency.LINEARIZABLE);
     assertThat(put.getCondition().get()).isExactlyInstanceOf(PutIfNotExists.class);
-    assertThat(put.forNamespace().get()).isEqualTo(coordinator.NAMESPACE);
-    assertThat(put.forTable().get()).isEqualTo(coordinator.TABLE);
+    assertThat(put.forNamespace().get()).isEqualTo(Coordinator.NAMESPACE);
+    assertThat(put.forTable().get()).isEqualTo(Coordinator.TABLE);
   }
 
   @Test
@@ -130,11 +126,7 @@ public class CoordinatorTest {
     doThrow(toThrow).when(storage).put(any(Put.class));
 
     // Act
-    assertThatThrownBy(
-            () -> {
-              coordinator.putState(state);
-            })
-        .isInstanceOf(CoordinatorException.class);
+    assertThatThrownBy(() -> coordinator.putState(state)).isInstanceOf(CoordinatorException.class);
 
     // Assert
     verify(coordinator).createPutWith(state);

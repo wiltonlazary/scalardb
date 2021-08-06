@@ -12,7 +12,6 @@ import com.scalar.db.api.Scan;
 import com.scalar.db.api.TableMetadata;
 import com.scalar.db.io.Value;
 import com.scalar.db.util.Utility;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.IntStream;
@@ -65,7 +64,7 @@ public class SelectStatementHandler extends StatementHandler {
 
     Record record = getContainer(operation).readItem(id, partitionKey, Record.class).getItem();
 
-    return Arrays.asList(record);
+    return Collections.singletonList(record);
   }
 
   private List<Record> executeReadWithIndex(Operation operation) throws CosmosException {
@@ -155,7 +154,7 @@ public class SelectStatementHandler extends StatementHandler {
                   .forEach(
                       i -> {
                         Value<?> value = end.get(i);
-                        Field field = DSL.field("r.clusteringKey." + value.getName());
+                        Field<Object> field = DSL.field("r.clusteringKey." + value.getName());
                         if (i == (end.size() - 1)) {
                           if (scan.getEndInclusive()) {
                             binder.set(v -> select.and(field.lessOrEqual(v)));
@@ -178,8 +177,8 @@ public class SelectStatementHandler extends StatementHandler {
 
     scanOrderings.forEach(
         o -> {
-          Field field = DSL.field("r.clusteringKey." + o.getName());
-          OrderField orderField =
+          Field<Object> field = DSL.field("r.clusteringKey." + o.getName());
+          OrderField<Object> orderField =
               (o.getOrder() == Scan.Ordering.Order.ASC) ? field.asc() : field.desc();
           select.orderBy(orderField);
         });

@@ -222,10 +222,6 @@ public class FloatValueTest {
   @Test
   public void constructor_NullGiven_ShouldThrowNullPointerException() {
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              new FloatValue(null, 1.0f);
-            })
-        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> new FloatValue(null, 1.0f)).isInstanceOf(NullPointerException.class);
   }
 }

@@ -111,12 +111,7 @@ public class TransactionResultTest {
 
     // Assert
     assertThat(values.size()).isEqualTo(given.getValues().size());
-    given
-        .getValues()
-        .forEach(
-            (k, v) -> {
-              assertThat(values.get(v.getName())).isEqualTo(v);
-            });
+    given.getValues().forEach((k, v) -> assertThat(values.get(v.getName())).isEqualTo(v));
   }
 
   @Test

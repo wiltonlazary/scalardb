@@ -487,7 +487,7 @@ public class JdbcTableMetadataManagerTest {
 
   // Utility class used to mock ResultSet
   static class ResultSetMocker implements org.mockito.stubbing.Answer<Object> {
-    List<Row> rows;
+    final List<Row> rows;
     int row = -1;
 
     public ResultSetMocker(List<Row> rows) {

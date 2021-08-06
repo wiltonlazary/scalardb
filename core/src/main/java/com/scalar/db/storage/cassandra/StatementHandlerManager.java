@@ -56,7 +56,7 @@ public class StatementHandlerManager {
       return select();
     } else if (operation instanceof Put) {
       MutationCondition condition = ((Put) operation).getCondition().orElse(null);
-      if (condition != null && (condition instanceof PutIf || condition instanceof PutIfExists)) {
+      if (condition instanceof PutIf || condition instanceof PutIfExists) {
         return update();
       } else {
         return insert();

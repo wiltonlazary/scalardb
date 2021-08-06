@@ -35,7 +35,7 @@ public class ValueBinderTest {
   @Mock private BoundStatement bound;
 
   @Before
-  public void setUp() throws Exception {
+  public void setUp() {
     MockitoAnnotations.initMocks(this);
   }
 
@@ -177,10 +177,6 @@ public class ValueBinderTest {
   @Test
   public void constructor_NullGiven_ShouldThrowNullPointerException() {
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              new ValueBinder(null);
-            })
-        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> new ValueBinder(null)).isInstanceOf(NullPointerException.class);
   }
 }

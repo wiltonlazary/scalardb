@@ -78,11 +78,7 @@ public class DeleteTest {
   @Test
   public void constructor_NullGiven_ShouldThrowNullPointerException() {
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              new Delete(null);
-            })
-        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> new Delete(null)).isInstanceOf(NullPointerException.class);
   }
 
   @Test

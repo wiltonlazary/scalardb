@@ -16,7 +16,6 @@ public class DynamoOperation {
   static final String PARTITION_KEY = "concatenatedPartitionKey";
   static final String CLUSTERING_KEY = "concatenatedClusteringKey";
   static final String PARTITION_KEY_ALIAS = ":pk";
-  static final String CLUSTERING_KEY_ALIAS = ":ck";
   static final String START_CLUSTERING_KEY_ALIAS = ":sck";
   static final String END_CLUSTERING_KEY_ALIAS = ":eck";
   static final String CONDITION_VALUE_ALIAS = ":cval";
@@ -82,13 +81,7 @@ public class DynamoOperation {
 
   String getConcatenatedPartitionKey() {
     Map<String, Value<?>> keyMap = new HashMap<>();
-    operation
-        .getPartitionKey()
-        .get()
-        .forEach(
-            v -> {
-              keyMap.put(v.getName(), v);
-            });
+    operation.getPartitionKey().get().forEach(v -> keyMap.put(v.getName(), v));
 
     ConcatenationVisitor visitor = new ConcatenationVisitor();
     metadata.getPartitionKeyNames().forEach(name -> keyMap.get(name).accept(visitor));
@@ -102,16 +95,7 @@ public class DynamoOperation {
     }
 
     Map<String, Value<?>> keyMap = new HashMap<>();
-    operation
-        .getClusteringKey()
-        .ifPresent(
-            k -> {
-              k.get()
-                  .forEach(
-                      v -> {
-                        keyMap.put(v.getName(), v);
-                      });
-            });
+    operation.getClusteringKey().ifPresent(k -> k.get().forEach(v -> keyMap.put(v.getName(), v)));
 
     ConcatenationVisitor visitor = new ConcatenationVisitor();
     metadata.getClusteringKeyNames().forEach(name -> keyMap.get(name).accept(visitor));

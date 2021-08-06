@@ -362,13 +362,10 @@ public class TestEnv implements Closeable {
 
   private String textType(int length) {
     String textType;
-    switch (rdbEngine) {
-      case ORACLE:
-        textType = "VARCHAR2";
-        break;
-      default:
-        textType = "VARCHAR";
-        break;
+    if (rdbEngine == RdbEngine.ORACLE) {
+      textType = "VARCHAR2";
+    } else {
+      textType = "VARCHAR";
     }
     return textType + "(" + length + ")";
   }

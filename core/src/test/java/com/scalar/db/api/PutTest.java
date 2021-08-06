@@ -143,10 +143,7 @@ public class PutTest {
 
     // Act Assert
     Map<String, Value<?>> values = put.getValues();
-    assertThatThrownBy(
-            () -> {
-              values.put(ANY_NAME_3, new TextValue(ANY_NAME_3, ANY_TEXT_3));
-            })
+    assertThatThrownBy(() -> values.put(ANY_NAME_3, new TextValue(ANY_NAME_3, ANY_TEXT_3)))
         .isInstanceOf(UnsupportedOperationException.class);
   }
 
@@ -166,11 +163,7 @@ public class PutTest {
   @Test
   public void constructor_NullGiven_ShouldThrowNullPointerException() {
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              new Put(null);
-            })
-        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> new Put(null)).isInstanceOf(NullPointerException.class);
   }
 
   @Test

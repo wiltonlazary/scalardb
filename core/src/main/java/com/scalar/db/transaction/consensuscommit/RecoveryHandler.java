@@ -29,7 +29,7 @@ public class RecoveryHandler {
   // lazy recovery in read phase
   public void recover(Selection selection, TransactionResult result) {
     LOGGER.info("recovering for " + result.getId());
-    Optional<Coordinator.State> state = null;
+    Optional<Coordinator.State> state;
     try {
       state = coordinator.getState(result.getId());
     } catch (CoordinatorException e) {

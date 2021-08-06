@@ -228,10 +228,6 @@ public class IntValueTest {
   @Test
   public void constructor_NullGiven_ShouldThrowNullPointerException() {
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              new IntValue(null, 1);
-            })
-        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> new IntValue(null, 1)).isInstanceOf(NullPointerException.class);
   }
 }

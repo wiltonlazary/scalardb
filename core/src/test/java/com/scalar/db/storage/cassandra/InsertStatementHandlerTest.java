@@ -1,9 +1,9 @@
 package com.scalar.db.storage.cassandra;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -55,7 +55,7 @@ public class InsertStatementHandlerTest {
   @Mock private BoundStatement bound;
 
   @Before
-  public void setUp() throws Exception {
+  public void setUp() {
     MockitoAnnotations.initMocks(this);
 
     handler = new InsertStatementHandler(session);
@@ -63,24 +63,20 @@ public class InsertStatementHandlerTest {
 
   private Put preparePut() {
     Key partitionKey = new Key(ANY_NAME_1, ANY_TEXT_1);
-    Put put =
-        new Put(partitionKey)
-            .withValue(ANY_NAME_2, ANY_INT_1)
-            .withValue(ANY_NAME_3, ANY_INT_2)
-            .forNamespace(ANY_KEYSPACE_NAME)
-            .forTable(ANY_TABLE_NAME);
-    return put;
+    return new Put(partitionKey)
+        .withValue(ANY_NAME_2, ANY_INT_1)
+        .withValue(ANY_NAME_3, ANY_INT_2)
+        .forNamespace(ANY_KEYSPACE_NAME)
+        .forTable(ANY_TABLE_NAME);
   }
 
   private Put preparePutWithClusteringKey() {
     Key partitionKey = new Key(ANY_NAME_1, ANY_TEXT_1);
     Key clusteringKey = new Key(ANY_NAME_2, ANY_TEXT_2);
-    Put put =
-        new Put(partitionKey, clusteringKey)
-            .withValue(ANY_NAME_3, ANY_INT_1)
-            .forNamespace(ANY_KEYSPACE_NAME)
-            .forTable(ANY_TABLE_NAME);
-    return put;
+    return new Put(partitionKey, clusteringKey)
+        .withValue(ANY_NAME_3, ANY_INT_1)
+        .forNamespace(ANY_KEYSPACE_NAME)
+        .forTable(ANY_TABLE_NAME);
   }
 
   private InsertStatementHandler prepareSpiedInsertStatementHandler() {
@@ -287,8 +283,7 @@ public class InsertStatementHandlerTest {
   }
 
   @Test
-  public void handle_WTEWithCasThrown_ShouldThrowProperExecutionException()
-      throws ExecutionException {
+  public void handle_WTEWithCasThrown_ShouldThrowProperExecutionException() {
     // Arrange
     put = preparePutWithClusteringKey();
     put.withCondition(new PutIfNotExists());
@@ -299,18 +294,14 @@ public class InsertStatementHandlerTest {
     doThrow(toThrow).when(spy).handleInternal(put);
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              spy.handle(put);
-            })
+    assertThatThrownBy(() -> spy.handle(put))
         .isInstanceOf(RetriableExecutionException.class)
         .hasCause(toThrow);
   }
 
   @Test
   public void
-      handle_PutWithConditionGivenAndWTEWithSimpleThrown_ShouldThrowProperExecutionException()
-          throws ExecutionException {
+      handle_PutWithConditionGivenAndWTEWithSimpleThrown_ShouldThrowProperExecutionException() {
     // Arrange
     put = preparePutWithClusteringKey();
     put.withCondition(new PutIfNotExists());
@@ -321,18 +312,14 @@ public class InsertStatementHandlerTest {
     doThrow(toThrow).when(spy).handleInternal(put);
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              spy.handle(put);
-            })
+    assertThatThrownBy(() -> spy.handle(put))
         .isInstanceOf(ReadRepairableExecutionException.class)
         .hasCause(toThrow);
   }
 
   @Test
   public void
-      handle_PutWithoutConditionGivenAndWTEWithSimpleThrown_ShouldThrowProperExecutionException()
-          throws ExecutionException {
+      handle_PutWithoutConditionGivenAndWTEWithSimpleThrown_ShouldThrowProperExecutionException() {
     // Arrange
     put = preparePutWithClusteringKey();
     spy = prepareSpiedInsertStatementHandler();
@@ -342,17 +329,13 @@ public class InsertStatementHandlerTest {
     doThrow(toThrow).when(spy).handleInternal(put);
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              spy.handle(put);
-            })
+    assertThatThrownBy(() -> spy.handle(put))
         .isInstanceOf(RetriableExecutionException.class)
         .hasCause(toThrow);
   }
 
   @Test
-  public void handle_DriverExceptionThrown_ShouldThrowProperExecutionException()
-      throws ExecutionException {
+  public void handle_DriverExceptionThrown_ShouldThrowProperExecutionException() {
     // Arrange
     put = preparePutWithClusteringKey();
     spy = prepareSpiedInsertStatementHandler();
@@ -361,17 +344,13 @@ public class InsertStatementHandlerTest {
     doThrow(toThrow).when(spy).handleInternal(put);
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              spy.handle(put);
-            })
+    assertThatThrownBy(() -> spy.handle(put))
         .isInstanceOf(ExecutionException.class)
         .hasCause(toThrow);
   }
 
   @Test
-  public void handle_PutWithConditionButNoMutationApplied_ShouldThrowProperExecutionException()
-      throws ExecutionException {
+  public void handle_PutWithConditionButNoMutationApplied_ShouldThrowProperExecutionException() {
     // Arrange
     put = preparePutWithClusteringKey();
     put.withCondition(new PutIfNotExists());
@@ -384,16 +363,11 @@ public class InsertStatementHandlerTest {
     doReturn(results).when(spy).execute(bound, put);
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              spy.handle(put);
-            })
-        .isInstanceOf(NoMutationException.class);
+    assertThatThrownBy(() -> spy.handle(put)).isInstanceOf(NoMutationException.class);
   }
 
   @Test
-  public void handle_PutWithoutConditionButNoMutationApplied_ShouldThrowProperExecutionException()
-      throws ExecutionException {
+  public void handle_PutWithoutConditionButNoMutationApplied_ShouldThrowProperExecutionException() {
     // Arrange
     put = preparePutWithClusteringKey();
     put.withCondition(new PutIfNotExists());
@@ -406,11 +380,7 @@ public class InsertStatementHandlerTest {
     doReturn(results).when(spy).execute(bound, put);
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              spy.handle(put);
-            })
-        .isInstanceOf(NoMutationException.class);
+    assertThatThrownBy(() -> spy.handle(put)).isInstanceOf(NoMutationException.class);
   }
 
   @Test
@@ -419,20 +389,14 @@ public class InsertStatementHandlerTest {
     Operation operation = mock(Get.class);
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              StatementHandler.checkArgument(operation, Put.class);
-            })
+    assertThatThrownBy(() -> StatementHandler.checkArgument(operation, Put.class))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
   public void constructor_NullGiven_ShouldThrowNullPointerException() {
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              new InsertStatementHandler(null);
-            })
+    assertThatThrownBy(() -> new InsertStatementHandler(null))
         .isInstanceOf(NullPointerException.class);
   }
 }

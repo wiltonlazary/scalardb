@@ -1,9 +1,9 @@
 package com.scalar.db.storage.cassandra;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyInt;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -51,7 +51,7 @@ public class SelectStatementHandlerTest {
   @Mock private BoundStatement bound;
 
   @Before
-  public void setUp() throws Exception {
+  public void setUp() {
     MockitoAnnotations.initMocks(this);
 
     handler = new SelectStatementHandler(session);
@@ -299,7 +299,7 @@ public class SelectStatementHandlerTest {
                   ANY_NAME_2,
                   ASC_ORDER.toString(),
                   "LIMIT",
-                  Integer.toString(ANY_LIMIT) + ";",
+                  ANY_LIMIT + ";",
                 });
     configureBehavior(expected);
     scan = prepareScan();
@@ -330,10 +330,10 @@ public class SelectStatementHandlerTest {
                   ANY_NAME_2 + ">=?",
                   "ORDER BY",
                   ANY_NAME_2,
-                  ASC_ORDER.toString() + "," + ANY_NAME_3,
+                  ASC_ORDER + "," + ANY_NAME_3,
                   DESC_ORDER.toString(),
                   "LIMIT",
-                  Integer.toString(ANY_LIMIT) + ";",
+                  ANY_LIMIT + ";",
                 });
     configureBehavior(expected);
     scan = prepareScan();
@@ -477,8 +477,7 @@ public class SelectStatementHandlerTest {
   }
 
   @Test
-  public void handle_DriverExceptionThrown_ShouldThrowProperExecutionException()
-      throws ExecutionException {
+  public void handle_DriverExceptionThrown_ShouldThrowProperExecutionException() {
     // Arrange
     get = prepareGetWithClusteringKey();
     SelectStatementHandler spy = Mockito.spy(new SelectStatementHandler(session));
@@ -489,10 +488,7 @@ public class SelectStatementHandlerTest {
     doThrow(toThrow).when(spy).handleInternal(get);
 
     // Act
-    assertThatThrownBy(
-            () -> {
-              spy.handle(get);
-            })
+    assertThatThrownBy(() -> spy.handle(get))
         .isInstanceOf(ExecutionException.class)
         .hasCause(toThrow);
 
@@ -505,20 +501,14 @@ public class SelectStatementHandlerTest {
     Operation operation = mock(Put.class);
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              StatementHandler.checkArgument(operation, Get.class, Scan.class);
-            })
+    assertThatThrownBy(() -> StatementHandler.checkArgument(operation, Get.class, Scan.class))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
   @Test
   public void constructor_NullGiven_ShouldThrowNullPointerException() {
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              new SelectStatementHandler(null);
-            })
+    assertThatThrownBy(() -> new SelectStatementHandler(null))
         .isInstanceOf(NullPointerException.class);
   }
 }

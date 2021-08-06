@@ -123,7 +123,7 @@ public class RollbackMutationComposerTest {
     when(mock.getPartitionKey()).thenReturn(Optional.of(new Key(ANY_NAME_1, ANY_TEXT_1)));
     when(mock.getClusteringKey()).thenReturn(Optional.of(new Key(ANY_NAME_2, ANY_TEXT_2)));
 
-    ImmutableMap.Builder builder =
+    ImmutableMap.Builder<String, Value<?>> builder =
         ImmutableMap.<String, Value<?>>builder()
             .put(ANY_NAME_3, new IntValue(ANY_NAME_3, ANY_INT_1))
             .put(Attribute.ID, Attribute.toIdValue(id))

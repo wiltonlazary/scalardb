@@ -219,10 +219,6 @@ public class DoubleValueTest {
   @Test
   public void constructor_NullGiven_ShouldThrowNullPointerException() {
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              new DoubleValue(null, 1.0);
-            })
-        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> new DoubleValue(null, 1.0)).isInstanceOf(NullPointerException.class);
   }
 }

@@ -5,7 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.Assertions.entry;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -28,7 +28,6 @@ import com.scalar.db.exception.transaction.CommitConflictException;
 import com.scalar.db.exception.transaction.CrudRuntimeException;
 import com.scalar.db.io.Key;
 import com.scalar.db.io.TextValue;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -222,7 +221,7 @@ public class SnapshotTest {
             scan.forTable().get(),
             scan.getPartitionKey(),
             scan.getStartClusteringKey().get());
-    List<Snapshot.Key> expected = Arrays.asList(key);
+    List<Snapshot.Key> expected = Collections.singletonList(key);
 
     // Act
     snapshot.put(scan, Optional.of(expected));
@@ -241,11 +240,7 @@ public class SnapshotTest {
     snapshot.put(key, put);
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              snapshot.get(key);
-            })
-        .isInstanceOf(CrudRuntimeException.class);
+    assertThatThrownBy(() -> snapshot.get(key)).isInstanceOf(CrudRuntimeException.class);
   }
 
   @Test
@@ -483,7 +478,7 @@ public class SnapshotTest {
             scan.getPartitionKey(),
             scan.getStartClusteringKey().get());
     Put put = preparePut();
-    snapshot.put(scan, Optional.of(Arrays.asList(key)));
+    snapshot.put(scan, Optional.of(Collections.singletonList(key)));
     snapshot.put(new Snapshot.Key(put), put);
 
     // Act Assert
@@ -532,10 +527,7 @@ public class SnapshotTest {
     when(storage.get(get)).thenReturn(Optional.of(changedTxResult));
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              snapshot.toSerializableWithExtraRead(storage);
-            })
+    assertThatThrownBy(() -> snapshot.toSerializableWithExtraRead(storage))
         .isInstanceOf(CommitConflictException.class);
 
     // Assert
@@ -576,11 +568,11 @@ public class SnapshotTest {
     TransactionResult txResult = new TransactionResult(result);
     Snapshot.Key key = new Snapshot.Key(get);
     snapshot.put(key, Optional.of(txResult));
-    snapshot.put(scan, Optional.of(Arrays.asList(key)));
+    snapshot.put(scan, Optional.of(Collections.singletonList(key)));
     snapshot.put(new Snapshot.Key(put), put);
     DistributedStorage storage = mock(DistributedStorage.class);
     Scanner scanner = mock(Scanner.class);
-    when(scanner.iterator()).thenReturn(Arrays.asList((Result) txResult).iterator());
+    when(scanner.iterator()).thenReturn(Collections.singletonList((Result) txResult).iterator());
     when(storage.scan(scan)).thenReturn(scanner);
 
     // Act Assert
@@ -604,12 +596,13 @@ public class SnapshotTest {
     TransactionResult txResult = new TransactionResult(result);
     Snapshot.Key key = new Snapshot.Key(get);
     snapshot.put(key, Optional.of(txResult));
-    snapshot.put(scan, Optional.of(Arrays.asList(key)));
+    snapshot.put(scan, Optional.of(Collections.singletonList(key)));
     snapshot.put(new Snapshot.Key(put), put);
     DistributedStorage storage = mock(DistributedStorage.class);
     TransactionResult changedTxResult = new TransactionResult(result);
     Scanner scanner = mock(Scanner.class);
-    when(scanner.iterator()).thenReturn(Arrays.asList((Result) changedTxResult).iterator());
+    when(scanner.iterator())
+        .thenReturn(Collections.singletonList((Result) changedTxResult).iterator());
     when(storage.scan(scan)).thenReturn(scanner);
 
     // Act Assert
@@ -633,7 +626,7 @@ public class SnapshotTest {
     DistributedStorage storage = mock(DistributedStorage.class);
     TransactionResult txResult = new TransactionResult(result);
     Scanner scanner = mock(Scanner.class);
-    when(scanner.iterator()).thenReturn(Arrays.asList((Result) txResult).iterator());
+    when(scanner.iterator()).thenReturn(Collections.singletonList((Result) txResult).iterator());
     when(storage.scan(scan)).thenReturn(scanner);
 
     // Act Assert

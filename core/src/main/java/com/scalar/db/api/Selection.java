@@ -16,7 +16,7 @@ import javax.annotation.Nonnull;
  * @author Hiroyuki Yamada
  */
 public abstract class Selection extends Operation {
-  private List<String> projections;
+  private final List<String> projections;
 
   public Selection(Key partitionKey, Key clusteringKey) {
     super(partitionKey, clusteringKey);
@@ -42,7 +42,7 @@ public abstract class Selection extends Operation {
    * @return this object
    */
   public Selection withProjections(Collection<String> projections) {
-    projections.forEach(p -> this.projections.add(p));
+    this.projections.addAll(projections);
     return this;
   }
 
@@ -81,10 +81,7 @@ public abstract class Selection extends Operation {
       return false;
     }
     Selection other = (Selection) o;
-    if (projections.equals(other.projections)) {
-      return true;
-    }
-    return false;
+    return projections.equals(other.projections);
   }
 
   @Override

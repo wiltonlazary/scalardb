@@ -2,7 +2,7 @@ package com.scalar.db.storage.cassandra;
 
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -57,7 +57,7 @@ public class BatchHandlerTest {
   @Mock private ResultSet results;
 
   @Before
-  public void setUp() throws Exception {
+  public void setUp() {
     MockitoAnnotations.initMocks(this);
 
     handlers =
@@ -103,8 +103,7 @@ public class BatchHandlerTest {
   }
 
   private BatchHandler prepareSpiedBatchHandler() {
-    BatchHandler spy = Mockito.spy(new BatchHandler(session, handlers));
-    return spy;
+    return Mockito.spy(new BatchHandler(session, handlers));
   }
 
   @Test
@@ -116,11 +115,7 @@ public class BatchHandlerTest {
     when(results.wasApplied()).thenReturn(true);
 
     // Act Assert
-    assertThatCode(
-            () -> {
-              batch.handle(mutations);
-            })
-        .doesNotThrowAnyException();
+    assertThatCode(() -> batch.handle(mutations)).doesNotThrowAnyException();
 
     // Assert
     verify(insert).prepare(mutations.get(0));
@@ -138,11 +133,7 @@ public class BatchHandlerTest {
     when(results.wasApplied()).thenReturn(true);
 
     // Act Assert
-    assertThatCode(
-            () -> {
-              batch.handle(mutations);
-            })
-        .doesNotThrowAnyException();
+    assertThatCode(() -> batch.handle(mutations)).doesNotThrowAnyException();
 
     // Assert
     verify(insert).prepare(mutations.get(0));
@@ -161,11 +152,7 @@ public class BatchHandlerTest {
     when(results.wasApplied()).thenReturn(true);
 
     // Act Assert
-    assertThatCode(
-            () -> {
-              batch.handle(mutations);
-            })
-        .doesNotThrowAnyException();
+    assertThatCode(() -> batch.handle(mutations)).doesNotThrowAnyException();
 
     // Assert
     verify(insert).prepare(mutations.get(0));
@@ -185,11 +172,7 @@ public class BatchHandlerTest {
     spy = prepareSpiedBatchHandler();
 
     // Act Assert
-    assertThatCode(
-            () -> {
-              spy.handle(mutations);
-            })
-        .doesNotThrowAnyException();
+    assertThatCode(() -> spy.handle(mutations)).doesNotThrowAnyException();
 
     // Assert
     verify(spy).setConsistencyForConditionalMutation(any(BatchStatement.class));
@@ -205,10 +188,7 @@ public class BatchHandlerTest {
     when(session.execute(any(Statement.class))).thenThrow(e);
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              batch.handle(mutations);
-            })
+    assertThatThrownBy(() -> batch.handle(mutations))
         .isInstanceOf(RetriableExecutionException.class)
         .hasCause(e);
   }
@@ -223,11 +203,7 @@ public class BatchHandlerTest {
     when(session.execute(any(Statement.class))).thenThrow(e);
 
     // Act Assert
-    assertThatCode(
-            () -> {
-              batch.handle(mutations);
-            })
-        .doesNotThrowAnyException();
+    assertThatCode(() -> batch.handle(mutations)).doesNotThrowAnyException();
   }
 
   @Test
@@ -240,10 +216,7 @@ public class BatchHandlerTest {
     when(session.execute(any(Statement.class))).thenThrow(e);
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              batch.handle(mutations);
-            })
+    assertThatThrownBy(() -> batch.handle(mutations))
         .isInstanceOf(RetriableExecutionException.class)
         .hasCause(e);
   }
@@ -259,10 +232,7 @@ public class BatchHandlerTest {
     when(session.execute(any(Statement.class))).thenThrow(e);
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              batch.handle(mutations);
-            })
+    assertThatThrownBy(() -> batch.handle(mutations))
         .isInstanceOf(RetriableExecutionException.class)
         .hasCause(e);
   }
@@ -276,10 +246,7 @@ public class BatchHandlerTest {
     when(session.execute(any(Statement.class))).thenThrow(e);
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              batch.handle(mutations);
-            })
+    assertThatThrownBy(() -> batch.handle(mutations))
         .isInstanceOf(RetriableExecutionException.class)
         .hasCause(e);
   }
@@ -293,20 +260,12 @@ public class BatchHandlerTest {
     when(results.wasApplied()).thenReturn(false);
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              batch.handle(mutations);
-            })
-        .isInstanceOf(NoMutationException.class);
+    assertThatThrownBy(() -> batch.handle(mutations)).isInstanceOf(NoMutationException.class);
   }
 
   @Test
   public void constructor_NullGiven_ShouldThrowNullPointerException() {
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              new BatchHandler(null, null);
-            })
-        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> new BatchHandler(null, null)).isInstanceOf(NullPointerException.class);
   }
 }
