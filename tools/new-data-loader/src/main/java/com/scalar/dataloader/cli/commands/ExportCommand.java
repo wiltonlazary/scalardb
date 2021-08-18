@@ -135,17 +135,9 @@ public class ExportCommand implements Callable<Integer> {
 
     Pattern pattern = Pattern.compile(".*=.*", Pattern.CASE_INSENSITIVE);
     for (String sort : sorts) {
-      // pattern checking
-      if (!pattern.matcher(sort.toLowerCase()).matches()) {
-        throw new Exception(
-            String.format(
-                "They provided sort '%s is not formatted correctly. Expected format is field=asc|desc.",
-                sort));
-      }
-
-      // validate ASC and DESC
+      // pattern checking and ASC|DESC check
       String[] split = sort.toLowerCase().split("=");
-      if (!split[1].equals("asc") && !split[1].equals("desc")) {
+      if (!pattern.matcher(sort.toLowerCase()).matches() || (!split[1].equals("asc") && !split[1].equals("desc"))) {
         throw new Exception(
             String.format(
                 "They provided sort '%s is not formatted correctly. Expected format is field=asc|desc.",
