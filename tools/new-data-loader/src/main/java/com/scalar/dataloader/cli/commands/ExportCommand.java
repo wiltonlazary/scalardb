@@ -4,13 +4,13 @@ import com.google.inject.Inject;
 import com.scalar.dataloader.common.service.OutputFormat;
 import com.scalar.dataloader.common.service.exports.Export;
 import com.scalar.dataloader.common.service.exports.ExportService;
-import com.scalar.dataloader.common.service.exports.ExportSort;
-import com.scalar.dataloader.common.service.exports.KeyFilter;
+import com.scalar.dataloader.common.service.exports.ScanOrdering;
+import com.scalar.dataloader.common.service.KeyFilter;
+import com.scalar.db.api.Scan;
 import picocli.CommandLine;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Callable;
 import java.util.regex.Pattern;
@@ -21,11 +21,11 @@ public class ExportCommand implements Callable<Integer> {
   @CommandLine.Spec CommandLine.Model.CommandSpec spec;
 
   @CommandLine.Option(
-      names = {"-ks", "--keyspace"},
-      paramLabel = "KEYSPACE",
+      names = {"-ns", "--namespace"},
+      paramLabel = "NAMESPACE",
       description = "keyspace to export table data from",
       required = true)
-  String keyspace;
+  String namespace;
 
   @CommandLine.Option(
       names = {"-t", "--tableName"},
@@ -37,12 +37,26 @@ public class ExportCommand implements Callable<Integer> {
   @CommandLine.Option(
       names = {"-k", "--key"},
       paramLabel = "KEY",
-      description = "partition or clustering key",
+      description = "partition key for scan",
       required = true)
-  String[] keys;
+  String partitionKey;
 
   @CommandLine.Option(
-      names = {"-s", "--sort"},
+          names = {"-s", "--start"},
+          paramLabel = "KEY",
+          description = "clustering key to mark scan start",
+          required = false)
+  String scanStartClusteringKey;
+
+  @CommandLine.Option(
+          names = {"-e", "--end"},
+          paramLabel = "KEY",
+          description = "clustering key to mark scan end",
+          required = false)
+  String scanEndClusteringKey;
+
+  @CommandLine.Option(
+      names = {"-so", "--sort"},
       paramLabel = "SORT",
       description = "clustering key sorting order")
   String[] sorts;
@@ -74,11 +88,11 @@ public class ExportCommand implements Callable<Integer> {
 
   @Override
   public Integer call() throws Exception {
-    List<KeyFilter> keyFilters = this.parseKeyFilters(this.keys);
-    List<ExportSort> sorts = this.parseSort(this.sorts);
+    KeyFilter scanPartitionKey = this.parseKey(this.partitionKey);
+    List<ScanOrdering> sorts = this.parseSort(this.sorts);
 
     Export.ExportBuilder builder =
-        new Export.ExportBuilder(this.keyspace, this.tableName, keyFilters).sorts(sorts);
+        new Export.ExportBuilder(this.namespace, this.tableName, scanPartitionKey).sorts(sorts);
     if (this.columns != null && this.columns.length > 0) {
       builder = builder.columns(Arrays.asList(columns));
     }
@@ -88,31 +102,33 @@ public class ExportCommand implements Callable<Integer> {
     if (this.outputFormat != null) {
       builder = builder.outputFormat(OutputFormat.valueOf(this.outputFormat));
     }
+    if (this.scanStartClusteringKey != null) {
+      builder = builder.scanStartClusteringKey(this.parseKey(this.scanStartClusteringKey));
+    }
+    if (this.scanEndClusteringKey != null) {
+      builder = builder.scanEndClusteringKey(this.parseKey(this.scanEndClusteringKey));
+    }
 
     this.exportService.export(builder.build());
 
     return 0;
   }
 
-  private List<KeyFilter> parseKeyFilters(String[] keys) throws Exception {
-    List<KeyFilter> keyFilters = new ArrayList<>();
+  private KeyFilter parseKey(String key) throws Exception {
     Pattern pattern = Pattern.compile(".*=.*", Pattern.CASE_INSENSITIVE);
-    for (String keyFilter : keys) {
-      // pattern checking
-      if (!pattern.matcher(keyFilter.toLowerCase()).matches()) {
-        throw new Exception(
-            String.format(
-                "They provided key '%s is not formatted correctly. Expected format is field=value.",
-                keyFilter));
-      }
-      String[] split = keyFilter.split("=");
-      keyFilters.add(new KeyFilter(split[0], split[1]));
+    // pattern checking
+    if (!pattern.matcher(key.toLowerCase()).matches()) {
+      throw new Exception(
+          String.format(
+              "They provided key '%s is not formatted correctly. Expected format is field=value.",
+              key));
     }
-    return keyFilters;
+    String[] split = key.split("=");
+    return new KeyFilter(split[0], split[1]);
   }
 
-  private List<ExportSort> parseSort(String[] sorts) throws Exception {
-    List<ExportSort> exportSorts = new ArrayList<>();
+  private List<ScanOrdering> parseSort(String[] sorts) throws Exception {
+    List<ScanOrdering> exportSorts = new ArrayList<>();
     if (sorts == null || sorts.length == 0) {
       return exportSorts;
     }
@@ -135,7 +151,8 @@ public class ExportCommand implements Callable<Integer> {
                 "They provided sort '%s is not formatted correctly. Expected format is field=asc|desc.",
                 sort));
       }
-      exportSorts.add(new ExportSort(split[0], split[1]));
+      exportSorts.add(
+          new ScanOrdering(split[0], Scan.Ordering.Order.valueOf(split[1].toUpperCase())));
     }
     return exportSorts;
   }

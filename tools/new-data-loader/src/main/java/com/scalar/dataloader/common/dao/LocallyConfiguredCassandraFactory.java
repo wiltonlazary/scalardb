@@ -4,12 +4,10 @@ import com.google.inject.Guice;
 import com.google.inject.Injector;
 import com.scalar.dataloader.common.dao.ScalarDbFactory;
 import com.scalar.db.api.DistributedStorage;
+import com.scalar.db.api.DistributedStorageAdmin;
 import com.scalar.db.api.DistributedTransactionManager;
 import com.scalar.db.config.DatabaseConfig;
-import com.scalar.db.service.StorageModule;
-import com.scalar.db.service.StorageService;
-import com.scalar.db.service.TransactionModule;
-import com.scalar.db.service.TransactionService;
+import com.scalar.db.service.*;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,5 +33,11 @@ public class LocallyConfiguredCassandraFactory implements ScalarDbFactory {
       DistributedStorage storage) {
     Injector injector = Guice.createInjector(new TransactionModule(dbConfiguration));
     return injector.getInstance(TransactionService.class);
+  }
+
+  @Override
+  public DistributedStorageAdmin createDistributedStorageAdmin() {
+    Injector injector = Guice.createInjector(new StorageModule(dbConfiguration));
+    return injector.getInstance(DistributedStorageAdmin.class);
   }
 }

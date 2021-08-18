@@ -12,6 +12,8 @@ import com.scalar.dataloader.common.service.exports.ExportServiceForTransaction;
 import com.scalar.dataloader.common.service.imports.ImportService;
 import com.scalar.dataloader.common.service.imports.ImportServiceForStorage;
 import com.scalar.dataloader.common.service.imports.ImportServiceForTransaction;
+import com.scalar.db.api.DistributedStorageAdmin;
+import com.scalar.db.api.DistributedTransactionManager;
 import picocli.CommandLine;
 
 import java.io.IOException;
@@ -43,8 +45,6 @@ public class DataLoaderCLIMain {
   static String scalarPropertiesFilePath;
 
   public static void main(String[] args) throws IOException {
-    DataLoaderCLIMain cli = new DataLoaderCLIMain();
-
     // Get `mode` and `scalarPropertiesFilePath` manually
     // The above annotation makes sure that PicoCLI adds the support for these arguments
     // However, at the time we need them, PICOCLI is not ready yet, so we need to get them manually
@@ -65,20 +65,26 @@ public class DataLoaderCLIMain {
     GenericDao dao = new GenericDao();
     ScalarDbManager scalarDbManager =
         new ScalarDbManager(new LocallyConfiguredCassandraFactory(scalarPropertiesFilePath));
+    DistributedStorageAdmin distributedStorageAdmin = scalarDbManager.getDistributedStorageAdmin();
 
     // Determine to start the services in Storage or Transaction mode
     if (mode.equals(SCALAR_DB_TRANSACTION_MODE)) {
+      DistributedTransactionManager distributedTransactionManager =
+          scalarDbManager.getDistributedTransactionManager();
       exportService =
-          new ExportServiceForTransaction(dao, scalarDbManager.getDistributedTransactionManager());
-      importService =
-          new ImportServiceForTransaction(dao, scalarDbManager.getDistributedTransactionManager());
+          new ExportServiceForTransaction(
+              dao, distributedTransactionManager, distributedStorageAdmin);
+      importService = new ImportServiceForTransaction(dao, distributedTransactionManager);
     } else {
-      exportService = new ExportServiceForStorage(dao, scalarDbManager.getDistributedStorage());
+      exportService =
+          new ExportServiceForStorage(
+              dao, scalarDbManager.getDistributedStorage(), distributedStorageAdmin);
       importService = new ImportServiceForStorage(dao, scalarDbManager.getDistributedStorage());
     }
 
     int exitCode =
-        new CommandLine(cli, new GuiceFactory(exportService, importService)).execute(args);
+        new CommandLine(new DataLoaderCLIMain(), new GuiceFactory(exportService, importService))
+            .execute(args);
     System.exit(exitCode);
   }
 }
