@@ -16,25 +16,24 @@ import java.io.IOException;
 
 public class LocallyConfiguredCassandraFactory implements ScalarDbFactory {
 
-    private DatabaseConfig dbConfiguration;
+  private DatabaseConfig dbConfiguration;
 
-    public LocallyConfiguredCassandraFactory(String scalarPropertiesFilePath) throws IOException {
-        System.out.println(scalarPropertiesFilePath);
-        dbConfiguration =
-                new DatabaseConfig(
-                        new File(getClass().getClassLoader().getResource(scalarPropertiesFilePath).getFile()));
-    }
+  public LocallyConfiguredCassandraFactory(String scalarPropertiesFilePath) throws IOException {
+    dbConfiguration =
+        new DatabaseConfig(
+            new File(getClass().getClassLoader().getResource(scalarPropertiesFilePath).getFile()));
+  }
 
-    @Override
-    public DistributedStorage createDistributedStorage() {
-        Injector injector = Guice.createInjector(new StorageModule(dbConfiguration));
-        return injector.getInstance(StorageService.class);
-    }
+  @Override
+  public DistributedStorage createDistributedStorage() {
+    Injector injector = Guice.createInjector(new StorageModule(dbConfiguration));
+    return injector.getInstance(StorageService.class);
+  }
 
-    @Override
-    public DistributedTransactionManager createDistributedTransactionManager(
-            DistributedStorage storage) {
-        Injector injector = Guice.createInjector(new TransactionModule(dbConfiguration));
-        return injector.getInstance(TransactionService.class);
-    }
+  @Override
+  public DistributedTransactionManager createDistributedTransactionManager(
+      DistributedStorage storage) {
+    Injector injector = Guice.createInjector(new TransactionModule(dbConfiguration));
+    return injector.getInstance(TransactionService.class);
+  }
 }

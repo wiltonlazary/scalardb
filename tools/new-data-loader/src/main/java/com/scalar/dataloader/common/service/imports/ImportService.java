@@ -4,9 +4,9 @@ import com.scalar.dataloader.common.dao.generic.GenericDao;
 
 public abstract class ImportService {
 
-    protected final GenericDao dao;
+  protected final GenericDao dao;
 
-    public ImportService(GenericDao dao) {
-        this.dao = dao;
-    }
+  public ImportService(GenericDao dao) {
+    this.dao = dao;
+  }
 }

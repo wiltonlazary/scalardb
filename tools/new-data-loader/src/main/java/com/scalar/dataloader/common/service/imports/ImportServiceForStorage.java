@@ -5,10 +5,10 @@ import com.scalar.db.api.DistributedStorage;
 
 public class ImportServiceForStorage extends ImportService {
 
-    private final DistributedStorage storage;
+  private final DistributedStorage storage;
 
-    public ImportServiceForStorage(GenericDao dao, DistributedStorage storage) {
-        super(dao);
-        this.storage = storage;
-    }
+  public ImportServiceForStorage(GenericDao dao, DistributedStorage storage) {
+    super(dao);
+    this.storage = storage;
+  }
 }

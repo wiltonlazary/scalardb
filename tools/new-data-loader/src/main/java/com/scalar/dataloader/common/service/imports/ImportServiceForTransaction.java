@@ -5,10 +5,10 @@ import com.scalar.db.api.DistributedTransactionManager;
 
 public class ImportServiceForTransaction extends ImportService {
 
-    private final DistributedTransactionManager transactionManager;
+  private final DistributedTransactionManager transactionManager;
 
-    public ImportServiceForTransaction(GenericDao dao, DistributedTransactionManager transactionManager) {
-        super(dao);
-        this.transactionManager = transactionManager;
-    }
+  public ImportServiceForTransaction(GenericDao dao, DistributedTransactionManager transactionManager) {
+    super(dao);
+    this.transactionManager = transactionManager;
+  }
 }
