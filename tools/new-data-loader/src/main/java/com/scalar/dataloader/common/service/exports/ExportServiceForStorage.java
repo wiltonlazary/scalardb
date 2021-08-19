@@ -28,6 +28,8 @@ public class ExportServiceForStorage extends ExportService {
     // check if keys exists
     this.validateScalarDBKey(tableMetadata.getPartitionKeyNames(), export.getScanPartitionKey());
 
+    // validate request columns
+
     // Convert partition key filter to actual Key
     DataType columnDataType =
         tableMetadata.getColumnDataType(export.getScanPartitionKey().getColumn());
@@ -36,8 +38,11 @@ public class ExportServiceForStorage extends ExportService {
     // validate sorts
     this.validateSorts(tableMetadata, export.getSorts());
 
-    // convert sort keys to
-    if (!export.getSorts().isEmpty()) {
+    // convert start and end to keys if available
+    if (export.getScanStartClusteringKeyFilter() != null) {
+
+    }
+    if (export.getScanEndClusteringKeyFilter() != null) {
 
     }
 
@@ -50,6 +55,9 @@ public class ExportServiceForStorage extends ExportService {
         Optional.empty(),
         export.getSorts(),
         this.storage);
+
+    // if cols are provided, then just return what is requested
+    // if cols are empty, return all fields
 
     // export to the actual file
   }

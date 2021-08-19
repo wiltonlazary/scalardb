@@ -3,6 +3,7 @@ package com.scalar.dataloader.cli;
 import com.scalar.dataloader.cli.commands.ExportCommand;
 import com.scalar.dataloader.cli.commands.GuiceFactory;
 import com.scalar.dataloader.cli.commands.ImportCommand;
+import com.scalar.dataloader.cli.commands.MetaCommand;
 import com.scalar.dataloader.common.dao.LocallyConfiguredCassandraFactory;
 import com.scalar.dataloader.common.dao.ScalarDbManager;
 import com.scalar.dataloader.common.dao.generic.GenericDao;
@@ -25,7 +26,7 @@ import static com.scalar.dataloader.common.Constants.SCALAR_DB_TRANSACTION_MODE;
     description = "Scalar DB art demo CLI",
     mixinStandardHelpOptions = true,
     version = "1.0",
-    subcommands = {ImportCommand.class, ExportCommand.class})
+    subcommands = {ImportCommand.class, ExportCommand.class, MetaCommand.class})
 public class DataLoaderCLIMain {
 
   // The actual variable here is unused but the annotation is necessary for PICOCLI

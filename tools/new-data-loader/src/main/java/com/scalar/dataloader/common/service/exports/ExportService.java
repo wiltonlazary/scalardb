@@ -20,12 +20,6 @@ public abstract class ExportService extends BaseService {
 
   public abstract void export(Export export) throws Exception;
 
-  protected void validateScalarDBKey(LinkedHashSet<String> partitionKeyNames, KeyFilter key) throws Exception {
-    if (!partitionKeyNames.contains(key.getColumn())) {
-      throw new Exception(String.format("The key '%s' could not be found", key.getColumn()));
-    }
-  }
-
   protected void validateSorts(TableMetadata tableMetadata, List<ScanOrdering> sorts) throws Exception {
     LinkedHashSet<String> clusteringKeyNames = tableMetadata.getClusteringKeyNames();
     for (ScanOrdering sort : sorts) {
