@@ -24,6 +24,7 @@ public class GenericDao {
       ScanBoundary scanBoundary,
       List<ScanOrdering> sorts,
       List<String> projections,
+      int limit,
       DistributedStorage storage)
       throws DaoException {
     // setup scan
@@ -47,6 +48,11 @@ public class GenericDao {
     // projections
     if (projections != null && !projections.isEmpty()) {
       scan.withProjections(projections);
+    }
+
+    // limit
+    if (limit > 0) {
+      scan.withLimit(limit);
     }
 
     // scan data

@@ -91,6 +91,12 @@ public class ExportCommand implements Callable<Integer> {
       description = "ouput date file format", defaultValue = "JSON")
   String outputFormat;
 
+  @CommandLine.Option(
+          names = {"-l", "--limit"},
+          paramLabel = "LIMIT",
+          description = "scan limit", defaultValue = "0")
+  int limit;
+
   private final ExportService exportService;
 
   @Inject
@@ -104,7 +110,7 @@ public class ExportCommand implements Callable<Integer> {
     List<ScanOrdering> sorts = this.parseSort(this.sorts);
 
     Export.ExportBuilder builder =
-        new Export.ExportBuilder(this.namespace, this.tableName, scanPartitionKey).sorts(sorts);
+        new Export.ExportBuilder(this.namespace, this.tableName, scanPartitionKey).sorts(sorts).limit(limit);
     if (this.projections != null && this.projections.length > 0) {
       builder = builder.projections(Arrays.asList(projections));
     }

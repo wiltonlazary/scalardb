@@ -71,6 +71,7 @@ public class ExportServiceForStorage extends ExportService {
             scanBoundary,
             export.getSorts(),
             export.getProjections(),
+            export.getLimit(),
             this.storage);
   }
 }

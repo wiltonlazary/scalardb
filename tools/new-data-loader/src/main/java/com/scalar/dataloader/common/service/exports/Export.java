@@ -18,6 +18,7 @@ public class Export {
   private final KeyFilter scanEndKeyFilter;
   private final boolean isScanStartInclusive;
   private final boolean isScanEndInclusive;
+  private final int limit;
 
   private Export(ExportBuilder builder) {
     this.namespace = builder.namespace;
@@ -31,6 +32,7 @@ public class Export {
     this.scanEndKeyFilter = builder.scanEndKey;
     this.isScanStartInclusive = builder.isScanStartInclusive;
     this.isScanEndInclusive = builder.isScanEndInclusive;
+    this.limit = builder.limit;
   }
 
   public String getNamespace() {
@@ -55,6 +57,10 @@ public class Export {
 
   public String getOutputFilePath() {
     return outputFilePath;
+  }
+
+  public int getLimit() {
+    return limit;
   }
 
   public KeyFilter getScanStartKeyFilter() {
@@ -87,6 +93,7 @@ public class Export {
     private KeyFilter scanEndKey;
     private boolean isScanStartInclusive = true;
     private boolean isScanEndInclusive = true;
+    private int limit = 0;
 
     public ExportBuilder(String namespace, String tableName, KeyFilter scanPartitionKey) {
       this.namespace = namespace;
@@ -111,6 +118,11 @@ public class Export {
 
     public ExportBuilder sorts(List<ScanOrdering> sorts) {
       this.sorts = sorts;
+      return this;
+    }
+
+    public ExportBuilder limit(int limit) {
+      this.limit = limit;
       return this;
     }
 
