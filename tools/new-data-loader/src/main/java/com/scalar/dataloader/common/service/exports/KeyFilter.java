@@ -1,4 +1,4 @@
-package com.scalar.dataloader.common.service;
+package com.scalar.dataloader.common.service.exports;
 
 import com.scalar.db.io.DataType;
 import com.scalar.db.io.Key;

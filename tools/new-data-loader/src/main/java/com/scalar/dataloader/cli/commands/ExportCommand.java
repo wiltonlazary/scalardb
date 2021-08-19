@@ -2,12 +2,11 @@ package com.scalar.dataloader.cli.commands;
 
 import com.google.gson.JsonArray;
 import com.google.inject.Inject;
-import com.scalar.dataloader.common.service.OutputFormat;
+import com.scalar.dataloader.cli.OutputFormat;
 import com.scalar.dataloader.common.service.exports.Export;
 import com.scalar.dataloader.common.service.exports.ExportService;
 import com.scalar.dataloader.common.service.exports.ScanOrdering;
-import com.scalar.dataloader.common.service.KeyFilter;
-import com.scalar.db.api.Result;
+import com.scalar.dataloader.common.service.exports.KeyFilter;
 import com.scalar.db.api.Scan;
 import picocli.CommandLine;
 

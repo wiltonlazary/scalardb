@@ -1,6 +1,5 @@
 package com.scalar.dataloader.common.service.exports;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.scalar.dataloader.common.dao.generic.GenericDao;
@@ -11,7 +10,9 @@ import com.scalar.db.api.TableMetadata;
 import com.scalar.db.io.DataType;
 import com.scalar.db.io.Value;
 
-import java.util.*;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 
 public abstract class ExportService extends BaseService {
 
@@ -68,7 +69,7 @@ public abstract class ExportService extends BaseService {
     return rows;
   }
 
-  protected void validateSorts(LinkedHashSet<String> clusteringKeyNames, List<ScanOrdering> sorts) throws Exception {
+  protected void validateClusterKeySorts(LinkedHashSet<String> clusteringKeyNames, List<ScanOrdering> sorts) throws Exception {
     for (ScanOrdering sort : sorts) {
       // O(n) but list is always going to be very small so it's ok
       if (!clusteringKeyNames.contains(sort.getClusteringKey())) {
@@ -97,6 +98,6 @@ public abstract class ExportService extends BaseService {
     this.validateProjections(tableMetadata.getColumnNames(), export.getProjections());
 
     // validate sorts
-    this.validateSorts(tableMetadata.getClusteringKeyNames(), export.getSorts());
+    this.validateClusterKeySorts(tableMetadata.getClusteringKeyNames(), export.getSorts());
   }
 }

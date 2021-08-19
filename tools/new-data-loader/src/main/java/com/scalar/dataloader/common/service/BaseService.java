@@ -1,5 +1,6 @@
 package com.scalar.dataloader.common.service;
 
+import com.scalar.dataloader.common.service.exports.KeyFilter;
 import com.scalar.db.api.DistributedStorageAdmin;
 import com.scalar.db.api.TableMetadata;
 import com.scalar.db.io.DataType;
