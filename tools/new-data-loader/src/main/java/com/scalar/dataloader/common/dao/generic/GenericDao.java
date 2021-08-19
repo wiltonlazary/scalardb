@@ -12,32 +12,31 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.Optional;
 
 public class GenericDao {
 
   private final Logger log = LoggerFactory.getLogger(this.getClass());
 
-  public void scan(
+  public List<Result> scan(
       String namespace,
       String tableName,
       Key partitionKey,
-      Optional<Key> startKey,
-      Optional<Key> endKey,
+      ScanBoundary scanBoundary,
       List<ScanOrdering> sorts,
+      List<String> projections,
       DistributedStorage storage)
       throws DaoException {
     // setup scan
     Scan scan = new Scan(partitionKey).forNamespace(namespace).forTable(tableName);
 
-    // with start
-    if (startKey != null && startKey.isPresent()) {
-      scan.withStart(startKey.get());
+    // Set boundary start
+    if (scanBoundary.getStartKey().isPresent()) {
+      scan.withStart(scanBoundary.getStartKey().get(), scanBoundary.getIsStartInclusive());
     }
 
     // with end
-    if (endKey != null && endKey.isPresent()) {
-      scan.withEnd(endKey.get());
+    if (scanBoundary.getEndKey().isPresent()) {
+      scan.withEnd(scanBoundary.getEndKey().get(), scanBoundary.getIsEndInclusive());
     }
 
     // clustering order
@@ -45,12 +44,15 @@ public class GenericDao {
       scan.withOrdering(new Scan.Ordering(sort.getClusteringKey(), sort.getSortOrder()));
     }
 
-    // scan and parse data
+    // projections
+    if (projections != null && !projections.isEmpty()) {
+      scan.withProjections(projections);
+    }
+
+    // scan data
     try {
       Scanner scanner = storage.scan(scan);
-      for (Result result : scanner) {
-        System.out.println(result);
-      }
+      return scanner.all();
     } catch (ExecutionException e) {
       throw new DaoException("error SCAN " + "fefefee", e);
     }

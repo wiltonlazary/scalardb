@@ -3,6 +3,7 @@ package com.scalar.dataloader.common.service.exports;
 import com.scalar.dataloader.common.service.KeyFilter;
 import com.scalar.dataloader.common.service.OutputFormat;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class Export {
@@ -14,11 +15,12 @@ public class Export {
 
   // Optional
   private final String outputFilePath;
-  private final OutputFormat outputFormat;
   private final List<ScanOrdering> sorts;
-  private final List<String> columns;
-  private final KeyFilter scanStartClusteringKeyFilter;
-  private final KeyFilter scanEndClusteringKeyFilter;
+  private final List<String> projections;
+  private final KeyFilter scanStartKeyFilter;
+  private final KeyFilter scanEndKeyFilter;
+  private final boolean isScanStartInclusive;
+  private final boolean isScanEndInclusive;
 
   private Export(ExportBuilder builder) {
     this.namespace = builder.namespace;
@@ -26,11 +28,12 @@ public class Export {
     this.scanPartitionKey = builder.scanPartitionKey;
 
     this.outputFilePath = builder.outputFilePath;
-    this.outputFormat = builder.outputFormat;
-    this.columns = builder.columns;
+    this.projections = builder.projections;
     this.sorts = builder.sorts;
-    this.scanStartClusteringKeyFilter = builder.scanStartClusteringKey;
-    this.scanEndClusteringKeyFilter = builder.scanEndClusteringKey;
+    this.scanStartKeyFilter = builder.scanStartKey;
+    this.scanEndKeyFilter = builder.scanEndKey;
+    this.isScanStartInclusive = builder.isScanStartInclusive;
+    this.isScanEndInclusive = builder.isScanEndInclusive;
   }
 
   public String getNamespace() {
@@ -45,8 +48,8 @@ public class Export {
     return scanPartitionKey;
   }
 
-  public List<String> getColumns() {
-    return columns;
+  public List<String> getProjections() {
+    return projections == null ? new ArrayList<>() : this.projections;
   }
 
   public List<ScanOrdering> getSorts() {
@@ -57,16 +60,20 @@ public class Export {
     return outputFilePath;
   }
 
-  public OutputFormat getOutputFormat() {
-    return outputFormat;
+  public KeyFilter getScanStartKeyFilter() {
+    return scanStartKeyFilter;
   }
 
-  public KeyFilter getScanStartClusteringKeyFilter() {
-    return scanStartClusteringKeyFilter;
+  public KeyFilter getScanEndKeyFilter() {
+    return scanEndKeyFilter;
   }
 
-  public KeyFilter getScanEndClusteringKeyFilter() {
-    return scanEndClusteringKeyFilter;
+  public boolean getIsStartScanInclusive() {
+    return isScanStartInclusive;
+  }
+
+  public boolean getIsEndScanInclusive() {
+    return isScanEndInclusive;
   }
 
   public static class ExportBuilder {
@@ -77,11 +84,12 @@ public class Export {
 
     // Optional
     private String outputFilePath = "<TODO change>";
-    private OutputFormat outputFormat = OutputFormat.JSON;
     private List<ScanOrdering> sorts;
-    private List<String> columns;
-    private KeyFilter scanStartClusteringKey;
-    private KeyFilter scanEndClusteringKey;
+    private List<String> projections;
+    private KeyFilter scanStartKey;
+    private KeyFilter scanEndKey;
+    private boolean isScanStartInclusive = true;
+    private boolean isScanEndInclusive = true;
 
     public ExportBuilder(String namespace, String tableName, KeyFilter scanPartitionKey) {
       this.namespace = namespace;
@@ -91,11 +99,6 @@ public class Export {
 
     public ExportBuilder outputFilePath(String outputFilePath) {
       this.outputFilePath = outputFilePath;
-      return this;
-    }
-
-    public ExportBuilder outputFormat(OutputFormat outputFormat) {
-      this.outputFormat = outputFormat;
       return this;
     }
 
@@ -114,23 +117,33 @@ public class Export {
       return this;
     }
 
-    public ExportBuilder column(String column) {
-      this.columns.add(column);
+    public ExportBuilder projection(String projection) {
+      this.projections.add(projection);
       return this;
     }
 
-    public ExportBuilder columns(List<String> columns) {
-      this.columns = columns;
+    public ExportBuilder projections(List<String> projections) {
+      this.projections = projections;
       return this;
     }
 
     public ExportBuilder scanStartClusteringKey(KeyFilter scanStartClusteringKey) {
-      this.scanStartClusteringKey = scanStartClusteringKey;
+      this.scanStartKey = scanStartClusteringKey;
       return this;
     }
 
     public ExportBuilder scanEndClusteringKey(KeyFilter scanEndClusteringKey) {
-      this.scanEndClusteringKey = scanEndClusteringKey;
+      this.scanEndKey = scanEndClusteringKey;
+      return this;
+    }
+
+    public ExportBuilder isScanStartInclusive(boolean isScanStartInclusive) {
+      this.isScanStartInclusive = isScanStartInclusive;
+      return this;
+    }
+
+    public ExportBuilder isScanEndInclusive(boolean isScanEndInclusive) {
+      this.isScanEndInclusive = isScanEndInclusive;
       return this;
     }
 

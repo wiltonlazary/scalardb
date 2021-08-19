@@ -1,11 +1,13 @@
 package com.scalar.dataloader.cli.commands;
 
+import com.google.gson.JsonArray;
 import com.google.inject.Inject;
 import com.scalar.dataloader.common.service.OutputFormat;
 import com.scalar.dataloader.common.service.exports.Export;
 import com.scalar.dataloader.common.service.exports.ExportService;
 import com.scalar.dataloader.common.service.exports.ScanOrdering;
 import com.scalar.dataloader.common.service.KeyFilter;
+import com.scalar.db.api.Result;
 import com.scalar.db.api.Scan;
 import picocli.CommandLine;
 
@@ -42,18 +44,29 @@ public class ExportCommand implements Callable<Integer> {
   String partitionKey;
 
   @CommandLine.Option(
-          names = {"-s", "--start"},
-          paramLabel = "KEY",
-          description = "clustering key to mark scan start",
-          required = false)
-  String scanStartClusteringKey;
+      names = {"-s", "--start"},
+      paramLabel = "KEY",
+      description = "clustering key to mark scan start",
+      required = false)
+  String scanStartKey;
 
   @CommandLine.Option(
-          names = {"-e", "--end"},
-          paramLabel = "KEY",
-          description = "clustering key to mark scan end",
-          required = false)
-  String scanEndClusteringKey;
+      names = {"-si", "--startInclusive"},
+      paramLabel = "SCAN START INCLUSIVE",
+      description = "is the scan start inclusive")
+  Boolean isScanStartInclusive;
+
+  @CommandLine.Option(
+      names = {"-e", "--end"},
+      paramLabel = "KEY",
+      description = "clustering key to mark scan end")
+  String scanEndKey;
+
+  @CommandLine.Option(
+      names = {"-ei", "--endInclusive"},
+      paramLabel = "SCAN END INCLUSIVE",
+      description = "is the scan end inclusive")
+  Boolean isScanEndInclusive;
 
   @CommandLine.Option(
       names = {"-so", "--sort"},
@@ -62,10 +75,10 @@ public class ExportCommand implements Callable<Integer> {
   String[] sorts;
 
   @CommandLine.Option(
-      names = {"-cols", "--columns"},
-      paramLabel = "COLUMNS",
-      description = "columns to export")
-  String[] columns;
+      names = {"-p", "--projection"},
+      paramLabel = "PROJECTION",
+      description = "column to export")
+  String[] projections;
 
   @CommandLine.Option(
       names = {"-o", "--outputFile"},
@@ -76,7 +89,7 @@ public class ExportCommand implements Callable<Integer> {
   @CommandLine.Option(
       names = {"-f", "--format"},
       paramLabel = "FORMAT",
-      description = "ouput date file format")
+      description = "ouput date file format", defaultValue = "JSON")
   String outputFormat;
 
   private final ExportService exportService;
@@ -93,23 +106,35 @@ public class ExportCommand implements Callable<Integer> {
 
     Export.ExportBuilder builder =
         new Export.ExportBuilder(this.namespace, this.tableName, scanPartitionKey).sorts(sorts);
-    if (this.columns != null && this.columns.length > 0) {
-      builder = builder.columns(Arrays.asList(columns));
+    if (this.projections != null && this.projections.length > 0) {
+      builder = builder.projections(Arrays.asList(projections));
     }
     if (this.outputFilePath != null) {
       builder = builder.outputFilePath(this.outputFilePath);
     }
-    if (this.outputFormat != null) {
-      builder = builder.outputFormat(OutputFormat.valueOf(this.outputFormat));
+    if (this.scanStartKey != null) {
+      builder = builder.scanStartClusteringKey(this.parseKey(this.scanStartKey));
     }
-    if (this.scanStartClusteringKey != null) {
-      builder = builder.scanStartClusteringKey(this.parseKey(this.scanStartClusteringKey));
+    if (this.scanEndKey != null) {
+      builder = builder.scanEndClusteringKey(this.parseKey(this.scanEndKey));
     }
-    if (this.scanEndClusteringKey != null) {
-      builder = builder.scanEndClusteringKey(this.parseKey(this.scanEndClusteringKey));
+    if (isScanStartInclusive != null) {
+      builder = builder.isScanStartInclusive(isScanStartInclusive);
+    }
+    if (isScanEndInclusive != null) {
+      builder = builder.isScanEndInclusive(isScanEndInclusive);
+    }
+    Export exportRequest = builder.build();
+
+    // JSON file output
+    if (OutputFormat.valueOf(outputFormat) == OutputFormat.JSON) {
+      JsonArray jsonArray = this.exportService.exportToJSON(exportRequest);
+      System.out.print(jsonArray);
     }
 
-    this.exportService.export(builder.build());
+//    List<Result> list = this.exportService.export(exportRequest);
+
+//    System.out.print(list);
 
     return 0;
   }
@@ -137,7 +162,8 @@ public class ExportCommand implements Callable<Integer> {
     for (String sort : sorts) {
       // pattern checking and ASC|DESC check
       String[] split = sort.toLowerCase().split("=");
-      if (!pattern.matcher(sort.toLowerCase()).matches() || (!split[1].equals("asc") && !split[1].equals("desc"))) {
+      if (!pattern.matcher(sort.toLowerCase()).matches()
+          || (!split[1].equals("asc") && !split[1].equals("desc"))) {
         throw new Exception(
             String.format(
                 "They provided sort '%s is not formatted correctly. Expected format is field=asc|desc.",
