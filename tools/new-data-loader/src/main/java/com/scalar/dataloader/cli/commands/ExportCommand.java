@@ -137,10 +137,10 @@ public class ExportCommand implements Callable<Integer> {
       System.out.print(jsonArray);
     }
 
-//    List<Result> list = this.exportService.export(exportRequest);
-
-//    System.out.print(list);
-
+    if (OutputFormat.valueOf(outputFormat) == OutputFormat.CSV) {
+      String csv = this.exportService.exportTOCSV(exportRequest, ";", true);
+      System.out.print(csv);
+    }
     return 0;
   }
 
