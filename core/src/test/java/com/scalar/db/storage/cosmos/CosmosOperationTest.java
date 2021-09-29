@@ -2,7 +2,6 @@ package com.scalar.db.storage.cosmos;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -31,27 +30,21 @@ public class CosmosOperationTest {
   private static final String ANY_TEXT_2 = "text2";
   private static final int ANY_INT_1 = 1;
 
-  @Mock private CosmosTableMetadataManager metadataManager;
   @Mock private TableMetadata metadata;
 
   @Before
-  public void setUp() throws Exception {
+  public void setUp() {
     MockitoAnnotations.initMocks(this);
-
-    when(metadataManager.getTableMetadata(any(Operation.class))).thenReturn(metadata);
   }
 
   @Test
   public void checkArgument_WrongOperationGiven_ShouldThrowIllegalArgumentException() {
     // Arrange
     Operation operation = mock(Put.class);
-    CosmosOperation cosmosOperation = new CosmosOperation(operation, metadataManager);
+    CosmosOperation cosmosOperation = new CosmosOperation(operation, metadata);
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              cosmosOperation.checkArgument(Get.class);
-            })
+    assertThatThrownBy(() -> cosmosOperation.checkArgument(Get.class))
         .isInstanceOf(IllegalArgumentException.class);
   }
 
@@ -63,7 +56,7 @@ public class CosmosOperationTest {
     Key partitionKey =
         Key.newBuilder().addText(ANY_NAME_1, ANY_TEXT_1).addInt(ANY_NAME_3, ANY_INT_1).build();
     Get get = new Get(partitionKey).forNamespace(ANY_KEYSPACE_NAME).forTable(ANY_TABLE_NAME);
-    CosmosOperation cosmosOperation = new CosmosOperation(get, metadataManager);
+    CosmosOperation cosmosOperation = new CosmosOperation(get, metadata);
 
     // Act
     boolean actual = cosmosOperation.isPrimaryKeySpecified();
@@ -85,7 +78,7 @@ public class CosmosOperationTest {
         new Get(partitionKey, clusteringKey)
             .forNamespace(ANY_KEYSPACE_NAME)
             .forTable(ANY_TABLE_NAME);
-    CosmosOperation cosmosOperation = new CosmosOperation(get, metadataManager);
+    CosmosOperation cosmosOperation = new CosmosOperation(get, metadata);
 
     // Act
     boolean actual = cosmosOperation.isPrimaryKeySpecified();
@@ -104,7 +97,7 @@ public class CosmosOperationTest {
         Key.newBuilder().addText(ANY_NAME_1, ANY_TEXT_1).addInt(ANY_NAME_3, ANY_INT_1).build();
     Delete delete =
         new Delete(partitionKey).forNamespace(ANY_KEYSPACE_NAME).forTable(ANY_TABLE_NAME);
-    CosmosOperation cosmosOperation = new CosmosOperation(delete, metadataManager);
+    CosmosOperation cosmosOperation = new CosmosOperation(delete, metadata);
 
     // Act
     boolean actual = cosmosOperation.isPrimaryKeySpecified();
@@ -126,7 +119,7 @@ public class CosmosOperationTest {
             .addInt(ANY_NAME_3, ANY_INT_1)
             .build();
     Get get = new Get(partitionKey).forNamespace(ANY_KEYSPACE_NAME).forTable(ANY_TABLE_NAME);
-    CosmosOperation cosmosOperation = new CosmosOperation(get, metadataManager);
+    CosmosOperation cosmosOperation = new CosmosOperation(get, metadata);
 
     // Act
     String actual = cosmosOperation.getConcatenatedPartitionKey();
@@ -148,7 +141,7 @@ public class CosmosOperationTest {
             .addInt(ANY_NAME_3, ANY_INT_1)
             .build();
     Get get = new Get(partitionKey).forNamespace(ANY_KEYSPACE_NAME).forTable(ANY_TABLE_NAME);
-    CosmosOperation cosmosOperation = new CosmosOperation(get, metadataManager);
+    CosmosOperation cosmosOperation = new CosmosOperation(get, metadata);
 
     // Act
     PartitionKey actual = cosmosOperation.getCosmosPartitionKey();
@@ -172,7 +165,7 @@ public class CosmosOperationTest {
         new Get(partitionKey, clusteringKey)
             .forNamespace(ANY_KEYSPACE_NAME)
             .forTable(ANY_TABLE_NAME);
-    CosmosOperation cosmosOperation = new CosmosOperation(get, metadataManager);
+    CosmosOperation cosmosOperation = new CosmosOperation(get, metadata);
 
     // Act
     String actual = cosmosOperation.getId();

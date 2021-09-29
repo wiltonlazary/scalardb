@@ -5,16 +5,28 @@ import com.google.inject.Inject;
 import com.scalar.db.api.DistributedStorageAdmin;
 import com.scalar.db.api.TableMetadata;
 import com.scalar.db.exception.storage.ExecutionException;
+import com.scalar.db.rpc.CreateNamespaceRequest;
 import com.scalar.db.rpc.CreateTableRequest;
 import com.scalar.db.rpc.DistributedStorageAdminGrpc;
+import com.scalar.db.rpc.DropNamespaceRequest;
 import com.scalar.db.rpc.DropTableRequest;
+import com.scalar.db.rpc.GetNamespaceTableNamesRequest;
+import com.scalar.db.rpc.GetNamespaceTableNamesResponse;
+import com.scalar.db.rpc.GetTableMetadataRequest;
+import com.scalar.db.rpc.GetTableMetadataResponse;
+import com.scalar.db.rpc.NamespaceExistsRequest;
+import com.scalar.db.rpc.NamespaceExistsResponse;
 import com.scalar.db.rpc.TruncateTableRequest;
 import com.scalar.db.util.ProtoUtil;
+import com.scalar.db.util.ThrowableSupplier;
 import io.grpc.ManagedChannel;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
 import io.grpc.netty.NettyChannelBuilder;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import javax.annotation.concurrent.ThreadSafe;
 import org.slf4j.Logger;
@@ -27,7 +39,6 @@ public class GrpcAdmin implements DistributedStorageAdmin {
   private final GrpcConfig config;
   private final ManagedChannel channel;
   private final DistributedStorageAdminGrpc.DistributedStorageAdminBlockingStub stub;
-  private final GrpcTableMetadataManager metadataManager;
 
   @Inject
   public GrpcAdmin(GrpcConfig config) {
@@ -37,23 +48,79 @@ public class GrpcAdmin implements DistributedStorageAdmin {
             .usePlaintext()
             .build();
     stub = DistributedStorageAdminGrpc.newBlockingStub(channel);
-    metadataManager = new GrpcTableMetadataManager(config, stub);
+  }
+
+  public GrpcAdmin(ManagedChannel channel, GrpcConfig config) {
+    this.channel = channel;
+    this.config = config;
+    stub = DistributedStorageAdminGrpc.newBlockingStub(channel);
   }
 
   @VisibleForTesting
   GrpcAdmin(
-      GrpcConfig config,
-      DistributedStorageAdminGrpc.DistributedStorageAdminBlockingStub stub,
-      GrpcTableMetadataManager metadataManager) {
-    this.config = config;
+      DistributedStorageAdminGrpc.DistributedStorageAdminBlockingStub stub, GrpcConfig config) {
     channel = null;
     this.stub = stub;
-    this.metadataManager = metadataManager;
+    this.config = config;
+  }
+
+  @Override
+  public void createNamespace(String namespace, Map<String, String> options)
+      throws ExecutionException {
+    createNamespace(namespace, false, options);
+  }
+
+  @Override
+  public void createNamespace(String namespace, boolean ifNotExists) throws ExecutionException {
+    createNamespace(namespace, ifNotExists, Collections.emptyMap());
+  }
+
+  @Override
+  public void createNamespace(String namespace) throws ExecutionException {
+    createNamespace(namespace, false, Collections.emptyMap());
+  }
+
+  @Override
+  public void createNamespace(String namespace, boolean ifNotExists, Map<String, String> options)
+      throws ExecutionException {
+    execute(
+        () ->
+            stub.withDeadlineAfter(config.getDeadlineDurationMillis(), TimeUnit.MILLISECONDS)
+                .createNamespace(
+                    CreateNamespaceRequest.newBuilder()
+                        .setNamespace(namespace)
+                        .setIfNotExists(ifNotExists)
+                        .putAllOptions(options)
+                        .build()));
+  }
+
+  @Override
+  public void createTable(
+      String namespace, String table, TableMetadata metadata, boolean ifNotExists)
+      throws ExecutionException {
+    createTable(namespace, table, metadata, ifNotExists, Collections.emptyMap());
+  }
+
+  @Override
+  public void createTable(String namespace, String table, TableMetadata metadata)
+      throws ExecutionException {
+    createTable(namespace, table, metadata, false, Collections.emptyMap());
   }
 
   @Override
   public void createTable(
       String namespace, String table, TableMetadata metadata, Map<String, String> options)
+      throws ExecutionException {
+    createTable(namespace, table, metadata, false, options);
+  }
+
+  @Override
+  public void createTable(
+      String namespace,
+      String table,
+      TableMetadata metadata,
+      boolean ifNotExists,
+      Map<String, String> options)
       throws ExecutionException {
     execute(
         () ->
@@ -63,6 +130,7 @@ public class GrpcAdmin implements DistributedStorageAdmin {
                         .setNamespace(namespace)
                         .setTable(table)
                         .setTableMetadata(ProtoUtil.toTableMetadata(metadata))
+                        .setIfNotExists(ifNotExists)
                         .putAllOptions(options)
                         .build()));
   }
@@ -74,6 +142,14 @@ public class GrpcAdmin implements DistributedStorageAdmin {
             stub.withDeadlineAfter(config.getDeadlineDurationMillis(), TimeUnit.MILLISECONDS)
                 .dropTable(
                     DropTableRequest.newBuilder().setNamespace(namespace).setTable(table).build()));
+  }
+
+  @Override
+  public void dropNamespace(String namespace) throws ExecutionException {
+    execute(
+        () ->
+            stub.withDeadlineAfter(config.getDeadlineDurationMillis(), TimeUnit.MILLISECONDS)
+                .dropNamespace(DropNamespaceRequest.newBuilder().setNamespace(namespace).build()));
   }
 
   @Override
@@ -90,12 +166,50 @@ public class GrpcAdmin implements DistributedStorageAdmin {
 
   @Override
   public TableMetadata getTableMetadata(String namespace, String table) throws ExecutionException {
-    return metadataManager.getTableMetadata(namespace, table);
+    return execute(
+        () -> {
+          GetTableMetadataResponse response =
+              stub.withDeadlineAfter(config.getDeadlineDurationMillis(), TimeUnit.MILLISECONDS)
+                  .getTableMetadata(
+                      GetTableMetadataRequest.newBuilder()
+                          .setNamespace(namespace)
+                          .setTable(table)
+                          .build());
+          if (!response.hasTableMetadata()) {
+            return null;
+          }
+          return ProtoUtil.toTableMetadata(response.getTableMetadata());
+        });
   }
 
-  private static void execute(Runnable runnable) throws ExecutionException {
+  @Override
+  public Set<String> getNamespaceTableNames(String namespace) throws ExecutionException {
+    return execute(
+        () -> {
+          GetNamespaceTableNamesResponse response =
+              stub.withDeadlineAfter(config.getDeadlineDurationMillis(), TimeUnit.MILLISECONDS)
+                  .getNamespaceTableNames(
+                      GetNamespaceTableNamesRequest.newBuilder().setNamespace(namespace).build());
+          return new HashSet<>(response.getTableNameList());
+        });
+  }
+
+  @Override
+  public boolean namespaceExists(String namespace) throws ExecutionException {
+    return execute(
+        () -> {
+          NamespaceExistsResponse response =
+              stub.withDeadlineAfter(config.getDeadlineDurationMillis(), TimeUnit.MILLISECONDS)
+                  .namespaceExists(
+                      NamespaceExistsRequest.newBuilder().setNamespace(namespace).build());
+          return response.getExists();
+        });
+  }
+
+  private static <T> T execute(ThrowableSupplier<T, ExecutionException> supplier)
+      throws ExecutionException {
     try {
-      runnable.run();
+      return supplier.get();
     } catch (StatusRuntimeException e) {
       if (e.getStatus().getCode() == Code.INVALID_ARGUMENT) {
         throw new IllegalArgumentException(e.getMessage(), e);

@@ -11,12 +11,12 @@ import com.scalar.db.api.TransactionState;
 import com.scalar.db.exception.transaction.TransactionException;
 import com.scalar.db.rpc.AbortRequest;
 import com.scalar.db.rpc.AbortResponse;
-import com.scalar.db.rpc.DistributedStorageAdminGrpc;
 import com.scalar.db.rpc.DistributedTransactionGrpc;
 import com.scalar.db.rpc.GetTransactionStateRequest;
 import com.scalar.db.rpc.GetTransactionStateResponse;
+import com.scalar.db.storage.common.TableMetadataManager;
+import com.scalar.db.storage.rpc.GrpcAdmin;
 import com.scalar.db.storage.rpc.GrpcConfig;
-import com.scalar.db.storage.rpc.GrpcTableMetadataManager;
 import com.scalar.db.util.ProtoUtil;
 import com.scalar.db.util.ThrowableSupplier;
 import com.scalar.db.util.retry.Retry;
@@ -36,9 +36,9 @@ import org.slf4j.LoggerFactory;
 @ThreadSafe
 public class GrpcTransactionManager implements DistributedTransactionManager {
   private static final Logger LOGGER = LoggerFactory.getLogger(GrpcTransactionManager.class);
-  private static final int DEFAULT_SCALAR_DB_SERVER_PORT = 60051;
+  static final int DEFAULT_SCALAR_DB_SERVER_PORT = 60051;
 
-  private static final Retry.ExceptionFactory<TransactionException> EXCEPTION_FACTORY =
+  static final Retry.ExceptionFactory<TransactionException> EXCEPTION_FACTORY =
       (message, cause) -> {
         if (cause == null) {
           return new TransactionException(message);
@@ -53,7 +53,7 @@ public class GrpcTransactionManager implements DistributedTransactionManager {
   private final ManagedChannel channel;
   private final DistributedTransactionGrpc.DistributedTransactionStub stub;
   private final DistributedTransactionGrpc.DistributedTransactionBlockingStub blockingStub;
-  private final GrpcTableMetadataManager metadataManager;
+  private final TableMetadataManager metadataManager;
 
   private Optional<String> namespace;
   private Optional<String> tableName;
@@ -71,8 +71,7 @@ public class GrpcTransactionManager implements DistributedTransactionManager {
             .build();
     stub = DistributedTransactionGrpc.newStub(channel);
     blockingStub = DistributedTransactionGrpc.newBlockingStub(channel);
-    metadataManager =
-        new GrpcTableMetadataManager(config, DistributedStorageAdminGrpc.newBlockingStub(channel));
+    metadataManager = new TableMetadataManager(new GrpcAdmin(channel, config), config);
     namespace = Optional.empty();
     tableName = Optional.empty();
   }
@@ -82,7 +81,7 @@ public class GrpcTransactionManager implements DistributedTransactionManager {
       GrpcConfig config,
       DistributedTransactionGrpc.DistributedTransactionStub stub,
       DistributedTransactionGrpc.DistributedTransactionBlockingStub blockingStub,
-      GrpcTableMetadataManager metadataManager) {
+      TableMetadataManager metadataManager) {
     this.config = config;
     channel = null;
     this.stub = stub;
@@ -208,7 +207,7 @@ public class GrpcTransactionManager implements DistributedTransactionManager {
         });
   }
 
-  private static <T> T execute(ThrowableSupplier<T, TransactionException> supplier)
+  static <T> T execute(ThrowableSupplier<T, TransactionException> supplier)
       throws TransactionException {
     return executeWithRetries(
         () -> {

@@ -3,11 +3,14 @@ package com.scalar.db.storage.dynamo;
 import com.scalar.db.api.Delete;
 import com.scalar.db.api.DeleteIfExists;
 import com.scalar.db.api.Operation;
+import com.scalar.db.api.TableMetadata;
 import com.scalar.db.exception.storage.ExecutionException;
 import com.scalar.db.exception.storage.NoMutationException;
+import com.scalar.db.storage.common.TableMetadataManager;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -23,17 +26,19 @@ import software.amazon.awssdk.services.dynamodb.model.DynamoDbException;
 @ThreadSafe
 public class DeleteStatementHandler extends StatementHandler {
 
-  public DeleteStatementHandler(DynamoDbClient client, DynamoTableMetadataManager metadataManager) {
+  public DeleteStatementHandler(DynamoDbClient client, TableMetadataManager metadataManager) {
     super(client, metadataManager);
   }
 
+  @Nonnull
   @Override
   public List<Map<String, AttributeValue>> handle(Operation operation) throws ExecutionException {
     checkArgument(operation, Delete.class);
     Delete delete = (Delete) operation;
 
+    TableMetadata tableMetadata = metadataManager.getTableMetadata(operation);
     try {
-      delete(delete);
+      delete(delete, tableMetadata);
     } catch (ConditionalCheckFailedException e) {
       throw new NoMutationException("no mutation was applied.", e);
     } catch (DynamoDbException e) {
@@ -43,8 +48,8 @@ public class DeleteStatementHandler extends StatementHandler {
     return Collections.emptyList();
   }
 
-  private void delete(Delete delete) {
-    DynamoMutation dynamoMutation = new DynamoMutation(delete, metadataManager);
+  private void delete(Delete delete, TableMetadata tableMetadata) {
+    DynamoMutation dynamoMutation = new DynamoMutation(delete, tableMetadata);
 
     DeleteItemRequest.Builder builder =
         DeleteItemRequest.builder()

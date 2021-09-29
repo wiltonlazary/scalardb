@@ -26,22 +26,25 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
+import javax.annotation.concurrent.ThreadSafe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@ThreadSafe
 public class DistributedStorageService extends DistributedStorageGrpc.DistributedStorageImplBase {
   private static final Logger LOGGER = LoggerFactory.getLogger(DistributedStorageService.class);
   private static final String SERVICE_NAME = "distributed_storage";
   private static final int DEFAULT_SCAN_FETCH_COUNT = 100;
 
   private final DistributedStorage storage;
-  private final Pauser pauser;
+  private final GateKeeper gateKeeper;
   private final Metrics metrics;
 
   @Inject
-  public DistributedStorageService(DistributedStorage storage, Pauser pauser, Metrics metrics) {
+  public DistributedStorageService(
+      DistributedStorage storage, GateKeeper gateKeeper, Metrics metrics) {
     this.storage = storage;
-    this.pauser = pauser;
+    this.gateKeeper = gateKeeper;
     this.metrics = metrics;
   }
 
@@ -110,7 +113,7 @@ public class DistributedStorageService extends DistributedStorageGrpc.Distribute
   }
 
   private boolean preProcess(StreamObserver<?> responseObserver) {
-    if (!pauser.preProcess()) {
+    if (!gateKeeper.letIn()) {
       respondUnavailableError(responseObserver);
       return false;
     }
@@ -123,7 +126,7 @@ public class DistributedStorageService extends DistributedStorageGrpc.Distribute
   }
 
   private void postProcess() {
-    pauser.postProcess();
+    gateKeeper.letOut();
   }
 
   private static class ScanStreamObserver implements StreamObserver<ScanRequest> {

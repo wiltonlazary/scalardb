@@ -2,19 +2,22 @@ package com.scalar.db.storage.dynamo;
 
 import com.scalar.db.api.Mutation;
 import com.scalar.db.api.Put;
+import com.scalar.db.api.TableMetadata;
 import com.scalar.db.io.Value;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import javax.annotation.Nonnull;
+import javax.annotation.concurrent.Immutable;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 /** A utility class for a mutation */
+@Immutable
 public class DynamoMutation extends DynamoOperation {
 
-  DynamoMutation(Mutation mutation, DynamoTableMetadataManager metadataManager) {
-    super(mutation, metadataManager);
+  DynamoMutation(Mutation mutation, TableMetadata metadata) {
+    super(mutation, metadata);
   }
 
   @Nonnull
@@ -22,11 +25,7 @@ public class DynamoMutation extends DynamoOperation {
     Put put = (Put) getOperation();
     Map<String, AttributeValue> values = getKeyMap();
     values.putAll(toMap(put.getPartitionKey().get()));
-    put.getClusteringKey()
-        .ifPresent(
-            k -> {
-              values.putAll(toMap(k.get()));
-            });
+    put.getClusteringKey().ifPresent(k -> values.putAll(toMap(k.get())));
     values.putAll(toMap(put.getValues().values()));
 
     return values;
@@ -58,12 +57,7 @@ public class DynamoMutation extends DynamoOperation {
   public String getCondition() {
     ConditionExpressionBuilder builder = new ConditionExpressionBuilder(CONDITION_VALUE_ALIAS);
     Mutation mutation = (Mutation) getOperation();
-    mutation
-        .getCondition()
-        .ifPresent(
-            c -> {
-              c.accept(builder);
-            });
+    mutation.getCondition().ifPresent(c -> c.accept(builder));
 
     return builder.build();
   }
@@ -146,10 +140,7 @@ public class DynamoMutation extends DynamoOperation {
     Mutation mutation = (Mutation) getOperation();
     mutation
         .getCondition()
-        .ifPresent(
-            c -> {
-              c.getExpressions().forEach(e -> e.getValue().accept(binder));
-            });
+        .ifPresent(c -> c.getExpressions().forEach(e -> e.getValue().accept(binder)));
 
     return binder.build();
   }

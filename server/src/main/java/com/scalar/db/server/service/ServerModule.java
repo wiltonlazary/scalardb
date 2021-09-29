@@ -6,12 +6,18 @@ import com.google.inject.Singleton;
 import com.scalar.db.api.DistributedStorage;
 import com.scalar.db.api.DistributedStorageAdmin;
 import com.scalar.db.api.DistributedTransactionManager;
+import com.scalar.db.api.TwoPhaseCommitTransactionManager;
 import com.scalar.db.config.DatabaseConfig;
+import com.scalar.db.server.GateKeeper;
 import com.scalar.db.server.Metrics;
-import com.scalar.db.server.Pauser;
 import com.scalar.db.server.config.ServerConfig;
 import com.scalar.db.service.StorageFactory;
 import com.scalar.db.service.TransactionFactory;
+import com.scalar.db.storage.rpc.GrpcConfig;
+import com.scalar.db.transaction.consensuscommit.ConsensusCommitConfig;
+import com.scalar.db.transaction.consensuscommit.ConsensusCommitManager;
+import com.scalar.db.transaction.rpc.GrpcTransactionManager;
+import java.util.Properties;
 
 public class ServerModule extends AbstractModule {
 
@@ -22,7 +28,23 @@ public class ServerModule extends AbstractModule {
   public ServerModule(ServerConfig config, DatabaseConfig databaseConfig) {
     this.config = config;
     storageFactory = new StorageFactory(databaseConfig);
-    transactionFactory = new TransactionFactory(databaseConfig);
+
+    Properties transactionProperties = new Properties(databaseConfig.getProperties());
+
+    // For two-phase consensus commit transactions in Scalar DB server, disable the active
+    // transactions management because Scalar DB server takes care of active transactions management
+    if (databaseConfig.getTransactionManagerClass() == ConsensusCommitManager.class) {
+      transactionProperties.put(
+          ConsensusCommitConfig.ACTIVE_TRANSACTIONS_MANAGEMENT_ENABLED, "false");
+    } else if (databaseConfig.getTransactionManagerClass() == GrpcTransactionManager.class) {
+      transactionProperties.put(GrpcConfig.ACTIVE_TRANSACTIONS_MANAGEMENT_ENABLED, "false");
+    }
+    transactionFactory = new TransactionFactory(new DatabaseConfig(transactionProperties));
+  }
+
+  @Override
+  protected void configure() {
+    bind(GateKeeper.class).to(config.getGateKeeperClass()).in(Singleton.class);
   }
 
   @Provides
@@ -45,8 +67,8 @@ public class ServerModule extends AbstractModule {
 
   @Provides
   @Singleton
-  Pauser providePauser() {
-    return new Pauser();
+  TwoPhaseCommitTransactionManager provideTwoPhaseCommitTransactionManager() {
+    return transactionFactory.getTwoPhaseCommitTransactionManager();
   }
 
   @Provides

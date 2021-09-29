@@ -37,23 +37,25 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import javax.annotation.concurrent.ThreadSafe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+@ThreadSafe
 public class DistributedTransactionService
     extends DistributedTransactionGrpc.DistributedTransactionImplBase {
   private static final Logger LOGGER = LoggerFactory.getLogger(DistributedTransactionService.class);
   private static final String SERVICE_NAME = "distributed_transaction";
 
   private final DistributedTransactionManager manager;
-  private final Pauser pauser;
+  private final GateKeeper gateKeeper;
   private final Metrics metrics;
 
   @Inject
   public DistributedTransactionService(
-      DistributedTransactionManager manager, Pauser pauser, Metrics metrics) {
+      DistributedTransactionManager manager, GateKeeper gateKeeper, Metrics metrics) {
     this.manager = manager;
-    this.pauser = pauser;
+    this.gateKeeper = gateKeeper;
     this.metrics = metrics;
   }
 
@@ -120,7 +122,7 @@ public class DistributedTransactionService
   }
 
   private boolean preProcess(StreamObserver<?> responseObserver) {
-    if (!pauser.preProcess()) {
+    if (!gateKeeper.letIn()) {
       respondUnavailableError(responseObserver);
       return false;
     }
@@ -133,7 +135,7 @@ public class DistributedTransactionService
   }
 
   private void postProcess() {
-    pauser.postProcess();
+    gateKeeper.letOut();
   }
 
   private static class TransactionStreamObserver implements StreamObserver<TransactionRequest> {
@@ -355,14 +357,14 @@ public class DistributedTransactionService
                 .build());
       } catch (Throwable t) {
         LOGGER.error("an internal error happened during the execution", t);
+        if (t instanceof Error) {
+          throw (Error) t;
+        }
         responseBuilder.setError(
             TransactionResponse.Error.newBuilder()
                 .setErrorCode(ErrorCode.OTHER)
                 .setMessage(t.getMessage())
                 .build());
-        if (t instanceof Error) {
-          throw (Error) t;
-        }
       }
     }
   }

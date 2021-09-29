@@ -1,16 +1,15 @@
 package com.scalar.db.storage.cosmos;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.when;
 
 import com.scalar.db.api.ConditionalExpression;
 import com.scalar.db.api.ConditionalExpression.Operator;
 import com.scalar.db.api.Delete;
-import com.scalar.db.api.Operation;
 import com.scalar.db.api.Put;
 import com.scalar.db.api.PutIf;
 import com.scalar.db.api.TableMetadata;
+import com.scalar.db.exception.storage.ExecutionException;
 import com.scalar.db.io.IntValue;
 import com.scalar.db.io.Key;
 import java.util.Arrays;
@@ -35,14 +34,12 @@ public class CosmosMutationTest {
   private static final int ANY_INT_3 = 3;
   private static final IntValue ANY_INT_VALUE = new IntValue("any_int", ANY_INT_3);
 
-  @Mock private CosmosTableMetadataManager metadataManager;
   @Mock private TableMetadata metadata;
 
   @Before
-  public void setUp() throws Exception {
+  public void setUp() throws ExecutionException {
     MockitoAnnotations.initMocks(this);
 
-    when(metadataManager.getTableMetadata(any(Operation.class))).thenReturn(metadata);
     when(metadata.getPartitionKeyNames())
         .thenReturn(new LinkedHashSet<>(Collections.singletonList(ANY_NAME_1)));
   }
@@ -50,31 +47,26 @@ public class CosmosMutationTest {
   private Put preparePut() {
     Key partitionKey = new Key(ANY_NAME_1, ANY_TEXT_1);
     Key clusteringKey = new Key(ANY_NAME_2, ANY_TEXT_2);
-    Put put =
-        new Put(partitionKey, clusteringKey)
-            .forNamespace(ANY_KEYSPACE_NAME)
-            .forTable(ANY_TABLE_NAME)
-            .withValue(ANY_NAME_3, ANY_INT_1)
-            .withValue(ANY_NAME_4, ANY_INT_2);
-
-    return put;
+    return new Put(partitionKey, clusteringKey)
+        .forNamespace(ANY_KEYSPACE_NAME)
+        .forTable(ANY_TABLE_NAME)
+        .withValue(ANY_NAME_3, ANY_INT_1)
+        .withValue(ANY_NAME_4, ANY_INT_2);
   }
 
   private Delete prepareDelete() {
     Key partitionKey = new Key(ANY_NAME_1, ANY_TEXT_1);
     Key clusteringKey = new Key(ANY_NAME_2, ANY_TEXT_2);
-    Delete del =
-        new Delete(partitionKey, clusteringKey)
-            .forNamespace(ANY_KEYSPACE_NAME)
-            .forTable(ANY_TABLE_NAME);
-    return del;
+    return new Delete(partitionKey, clusteringKey)
+        .forNamespace(ANY_KEYSPACE_NAME)
+        .forTable(ANY_TABLE_NAME);
   }
 
   @Test
   public void makeRecord_PutGiven_ShouldReturnWithValues() {
     // Arrange
     Put put = preparePut();
-    CosmosMutation cosmosMutation = new CosmosMutation(put, metadataManager);
+    CosmosMutation cosmosMutation = new CosmosMutation(put, metadata);
     String id = cosmosMutation.getId();
     String concatenatedPartitionKey = cosmosMutation.getConcatenatedPartitionKey();
 
@@ -94,7 +86,7 @@ public class CosmosMutationTest {
   public void makeRecord_DeleteGiven_ShouldReturnEmpty() {
     // Arrange
     Delete delete = prepareDelete();
-    CosmosMutation cosmosMutation = new CosmosMutation(delete, metadataManager);
+    CosmosMutation cosmosMutation = new CosmosMutation(delete, metadata);
 
     // Act
     Record actual = cosmosMutation.makeRecord();
@@ -108,7 +100,7 @@ public class CosmosMutationTest {
   public void makeConditionalQuery_MutationWithoutConditionsGiven_ShouldReturnQuery() {
     // Arrange
     Put put = preparePut();
-    CosmosMutation cosmosMutation = new CosmosMutation(put, metadataManager);
+    CosmosMutation cosmosMutation = new CosmosMutation(put, metadata);
     String id = cosmosMutation.getId();
 
     // Act
@@ -128,7 +120,7 @@ public class CosmosMutationTest {
     Delete delete =
         new Delete(partitionKey).forNamespace(ANY_KEYSPACE_NAME).forTable(ANY_TABLE_NAME);
 
-    CosmosMutation cosmosMutation = new CosmosMutation(delete, metadataManager);
+    CosmosMutation cosmosMutation = new CosmosMutation(delete, metadata);
     String concatenatedPartitionKey = cosmosMutation.getConcatenatedPartitionKey();
 
     // Act
@@ -155,7 +147,7 @@ public class CosmosMutationTest {
             .forNamespace(ANY_KEYSPACE_NAME)
             .forTable(ANY_TABLE_NAME);
 
-    CosmosMutation cosmosMutation = new CosmosMutation(delete, metadataManager);
+    CosmosMutation cosmosMutation = new CosmosMutation(delete, metadata);
     String concatenatedPartitionKey = cosmosMutation.getConcatenatedPartitionKey();
 
     // Act
@@ -181,7 +173,7 @@ public class CosmosMutationTest {
             new ConditionalExpression(ANY_NAME_3, ANY_INT_VALUE, Operator.EQ),
             new ConditionalExpression(ANY_NAME_4, ANY_INT_VALUE, Operator.GT));
     Put put = preparePut().withCondition(conditions);
-    CosmosMutation cosmosMutation = new CosmosMutation(put, metadataManager);
+    CosmosMutation cosmosMutation = new CosmosMutation(put, metadata);
     String id = cosmosMutation.getId();
 
     // Act

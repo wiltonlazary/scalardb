@@ -2,7 +2,7 @@ package com.scalar.db.storage.cassandra;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -12,14 +12,12 @@ import com.datastax.driver.core.Metadata;
 import com.datastax.driver.core.Session;
 import com.datastax.driver.core.TableMetadata;
 import com.datastax.driver.core.exceptions.NoHostAvailableException;
-import com.scalar.db.exception.storage.ConnectionException;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 
-/** */
 public class ClusterManagerTest {
   private static final String ANY_KEYSPACE_NAME = "keyspace";
   private static final String ANY_TABLE_NAME = "table";
@@ -59,18 +57,13 @@ public class ClusterManagerTest {
   }
 
   @Test
-  public void getMetadata_NoHostAvailable_ShouldThrowConnectionException() {
+  public void getMetadata_NoHostAvailable_ShouldThrowNoHostAvailableException() {
     // Arrange
-    NoHostAvailableException toThrow = mock(NoHostAvailableException.class);
-    when(cluster.getMetadata()).thenThrow(toThrow);
+    when(cluster.getMetadata()).thenThrow(NoHostAvailableException.class);
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              manager.getMetadata(ANY_KEYSPACE_NAME, ANY_TABLE_NAME);
-            })
-        .isInstanceOf(ConnectionException.class)
-        .hasCause(toThrow);
+    assertThatThrownBy(() -> manager.getMetadata(ANY_KEYSPACE_NAME, ANY_TABLE_NAME))
+        .isInstanceOf(NoHostAvailableException.class);
   }
 
   @Test

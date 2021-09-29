@@ -3,9 +3,11 @@ package com.scalar.db.transaction.rpc;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.scalar.db.api.Get;
 import com.scalar.db.api.Mutation;
+import com.scalar.db.api.Operation;
 import com.scalar.db.api.Result;
 import com.scalar.db.api.Scan;
 import com.scalar.db.api.TableMetadata;
+import com.scalar.db.exception.storage.ExecutionException;
 import com.scalar.db.exception.transaction.AbortException;
 import com.scalar.db.exception.transaction.CommitConflictException;
 import com.scalar.db.exception.transaction.CommitException;
@@ -23,8 +25,8 @@ import com.scalar.db.rpc.TransactionRequest.ScanRequest;
 import com.scalar.db.rpc.TransactionRequest.StartRequest;
 import com.scalar.db.rpc.TransactionResponse;
 import com.scalar.db.rpc.TransactionResponse.GetResponse;
+import com.scalar.db.storage.common.TableMetadataManager;
 import com.scalar.db.storage.rpc.GrpcConfig;
-import com.scalar.db.storage.rpc.GrpcTableMetadataManager;
 import com.scalar.db.util.ProtoUtil;
 import com.scalar.db.util.Utility;
 import com.scalar.db.util.retry.ServiceTemporaryUnavailableException;
@@ -47,16 +49,14 @@ public class GrpcTransactionOnBidirectionalStream
     implements ClientResponseObserver<TransactionRequest, TransactionResponse> {
 
   private final GrpcConfig config;
-  private final GrpcTableMetadataManager metadataManager;
+  private final TableMetadataManager metadataManager;
   private final BlockingQueue<ResponseOrError> queue = new LinkedBlockingQueue<>();
   private final AtomicBoolean finished = new AtomicBoolean();
 
   private ClientCallStreamObserver<TransactionRequest> requestStream;
 
   public GrpcTransactionOnBidirectionalStream(
-      GrpcConfig config,
-      DistributedTransactionStub stub,
-      GrpcTableMetadataManager metadataManager) {
+      GrpcConfig config, DistributedTransactionStub stub, TableMetadataManager metadataManager) {
     this.config = config;
     this.metadataManager = metadataManager;
     stub.transaction(this);
@@ -101,10 +101,6 @@ public class GrpcTransactionOnBidirectionalStream
     if (finished.get()) {
       throw new IllegalStateException("the transaction is finished");
     }
-  }
-
-  public String startTransaction() throws TransactionException {
-    return startTransaction(null);
   }
 
   public String startTransaction(@Nullable String transactionId) throws TransactionException {
@@ -154,7 +150,7 @@ public class GrpcTransactionOnBidirectionalStream
 
     GetResponse getResponse = responseOrError.getResponse().getGetResponse();
     if (getResponse.hasResult()) {
-      TableMetadata tableMetadata = metadataManager.getTableMetadata(get);
+      TableMetadata tableMetadata = getTableMetadata(get);
       return Optional.of(ProtoUtil.toResult(getResponse.getResult(), tableMetadata));
     }
 
@@ -171,10 +167,18 @@ public class GrpcTransactionOnBidirectionalStream
                 .build());
     throwIfErrorForCrud(responseOrError);
 
-    TableMetadata tableMetadata = metadataManager.getTableMetadata(scan);
+    TableMetadata tableMetadata = getTableMetadata(scan);
     return responseOrError.getResponse().getScanResponse().getResultList().stream()
         .map(r -> ProtoUtil.toResult(r, tableMetadata))
         .collect(Collectors.toList());
+  }
+
+  private TableMetadata getTableMetadata(Operation operation) throws CrudException {
+    try {
+      return metadataManager.getTableMetadata(operation);
+    } catch (ExecutionException e) {
+      throw new CrudException("getting a metadata failed", e);
+    }
   }
 
   public void mutate(Mutation mutation) throws CrudException {
@@ -211,13 +215,14 @@ public class GrpcTransactionOnBidirectionalStream
 
     TransactionResponse response = responseOrError.getResponse();
     if (response.hasError()) {
-      switch (response.getError().getErrorCode()) {
+      TransactionResponse.Error error = response.getError();
+      switch (error.getErrorCode()) {
         case INVALID_ARGUMENT:
-          throw new IllegalArgumentException(response.getError().getMessage());
+          throw new IllegalArgumentException(error.getMessage());
         case CONFLICT:
-          throw new CrudConflictException(response.getError().getMessage());
+          throw new CrudConflictException(error.getMessage());
         default:
-          throw new CrudException(response.getError().getMessage());
+          throw new CrudException(error.getMessage());
       }
     }
   }
@@ -244,15 +249,16 @@ public class GrpcTransactionOnBidirectionalStream
       throw new CommitException("failed to commit", error);
     }
 
-    if (responseOrError.getResponse().hasError()) {
-      switch (responseOrError.getResponse().getError().getErrorCode()) {
+    TransactionResponse response = responseOrError.getResponse();
+    if (response.hasError()) {
+      TransactionResponse.Error error = response.getError();
+      switch (error.getErrorCode()) {
         case CONFLICT:
-          throw new CommitConflictException(responseOrError.getResponse().getError().getMessage());
+          throw new CommitConflictException(error.getMessage());
         case UNKNOWN_TRANSACTION:
-          throw new UnknownTransactionStatusException(
-              responseOrError.getResponse().getError().getMessage());
+          throw new UnknownTransactionStatusException(error.getMessage());
         default:
-          throw new CommitException(responseOrError.getResponse().getError().getMessage());
+          throw new CommitException(error.getMessage());
       }
     }
   }

@@ -7,6 +7,7 @@ import com.azure.cosmos.CosmosContainer;
 import com.azure.cosmos.CosmosException;
 import com.scalar.db.api.Operation;
 import com.scalar.db.exception.storage.ExecutionException;
+import com.scalar.db.storage.common.TableMetadataManager;
 import java.util.List;
 import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
@@ -18,7 +19,7 @@ import org.slf4j.LoggerFactory;
 public abstract class StatementHandler {
   private static final Logger LOGGER = LoggerFactory.getLogger(StatementHandler.class);
   protected final CosmosClient client;
-  protected final CosmosTableMetadataManager metadataManager;
+  protected final TableMetadataManager metadataManager;
 
   /**
    * Constructs a {@code StatementHandler} with the specified {@link CosmosClient}
@@ -26,7 +27,7 @@ public abstract class StatementHandler {
    * @param client {@code CosmosClient}
    * @param metadataManager {@code TableMetadataManager}
    */
-  protected StatementHandler(CosmosClient client, CosmosTableMetadataManager metadataManager) {
+  protected StatementHandler(CosmosClient client, TableMetadataManager metadataManager) {
     this.client = checkNotNull(client);
     this.metadataManager = checkNotNull(metadataManager);
   }
@@ -41,16 +42,15 @@ public abstract class StatementHandler {
   @Nonnull
   public List<Record> handle(Operation operation) throws ExecutionException {
     try {
-      List<Record> results = execute(operation);
-
-      return results;
+      return execute(operation);
     } catch (RuntimeException e) {
       LOGGER.error(e.getMessage());
       throw new ExecutionException(e.getMessage(), e);
     }
   }
 
-  protected abstract List<Record> execute(Operation operation) throws CosmosException;
+  protected abstract List<Record> execute(Operation operation)
+      throws CosmosException, ExecutionException;
 
   @Nonnull
   protected CosmosContainer getContainer(Operation operation) {

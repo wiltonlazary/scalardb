@@ -9,7 +9,6 @@ import com.scalar.db.api.DistributedStorage;
 import com.scalar.db.api.DistributedTransactionManager;
 import com.scalar.db.api.Isolation;
 import com.scalar.db.api.TransactionState;
-import com.scalar.db.config.DatabaseConfig;
 import com.scalar.db.exception.transaction.CoordinatorException;
 import com.scalar.db.exception.transaction.UnknownTransactionStatusException;
 import com.scalar.db.transaction.consensuscommit.Coordinator.State;
@@ -23,15 +22,15 @@ import org.slf4j.LoggerFactory;
 public class ConsensusCommitManager implements DistributedTransactionManager {
   private static final Logger LOGGER = LoggerFactory.getLogger(ConsensusCommitManager.class);
   private final DistributedStorage storage;
-  private final DatabaseConfig config;
-  private Coordinator coordinator;
-  private RecoveryHandler recovery;
-  private CommitHandler commit;
+  private final ConsensusCommitConfig config;
+  private final Coordinator coordinator;
+  private final RecoveryHandler recovery;
+  private final CommitHandler commit;
   private Optional<String> namespace;
   private Optional<String> tableName;
 
   @Inject
-  public ConsensusCommitManager(DistributedStorage storage, DatabaseConfig config) {
+  public ConsensusCommitManager(DistributedStorage storage, ConsensusCommitConfig config) {
     this.storage = storage;
     this.config = config;
     this.coordinator = new Coordinator(storage);
@@ -44,7 +43,7 @@ public class ConsensusCommitManager implements DistributedTransactionManager {
   @VisibleForTesting
   public ConsensusCommitManager(
       DistributedStorage storage,
-      DatabaseConfig config,
+      ConsensusCommitConfig config,
       Coordinator coordinator,
       RecoveryHandler recovery,
       CommitHandler commit) {
@@ -142,8 +141,8 @@ public class ConsensusCommitManager implements DistributedTransactionManager {
     Snapshot snapshot = new Snapshot(txId, isolation, (SerializableStrategy) strategy);
     CrudHandler crud = new CrudHandler(storage, snapshot);
     ConsensusCommit consensus = new ConsensusCommit(crud, commit, recovery);
-    namespace.ifPresent(n -> consensus.withNamespace(n));
-    tableName.ifPresent(t -> consensus.withTable(t));
+    namespace.ifPresent(consensus::withNamespace);
+    tableName.ifPresent(consensus::withTable);
     return consensus;
   }
 
@@ -155,8 +154,8 @@ public class ConsensusCommitManager implements DistributedTransactionManager {
       if (state.isPresent()) {
         return state.get().getState();
       }
-    } catch (CoordinatorException e) {
-      // ignore
+    } catch (CoordinatorException ignored) {
+      // ignored
     }
     // Either no state exists or the exception is thrown
     return TransactionState.UNKNOWN;

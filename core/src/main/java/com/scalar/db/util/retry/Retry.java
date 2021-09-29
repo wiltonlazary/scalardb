@@ -20,6 +20,8 @@ public final class Retry {
     E create(String message, @Nullable Throwable cause);
   }
 
+  private Retry() {}
+
   public static <T, E extends Throwable> T executeWithRetries(
       ThrowableSupplier<T, E> supplier, ExceptionFactory<E> exceptionFactory) throws E {
     int interval = RETRY_INITIAL_INTERVAL_MILLIS;
@@ -28,8 +30,9 @@ public final class Retry {
         return supplier.get();
       } catch (ServiceTemporaryUnavailableException e) {
         LOGGER.warn(
-            "received UNAVAILABLE state. retrying after {} milliseconds..."
+            "received UNAVAILABLE state (the message: \"{}\"). retrying after {} milliseconds..."
                 + " the current attempt count: {}",
+            e.getMessage(),
             interval,
             i + 1);
       } catch (RuntimeException e) {

@@ -74,6 +74,16 @@ sourceSets {
         }
         resources.srcDir file('src/integration-test/resources')
     }
+    integrationTestTwoPhaseConsesnsusCommit {
+        java {
+            compileClasspath += main.output + test.output
+            runtimeClasspath += main.output + test.output
+            srcDir file('src/integration-test/java')
+            include '**/com/scalar/db/storage/jdbc/test/*.java'
+            include '**/com/scalar/db/transaction/consensuscommit/TwoPhaseConsensusCommitIntegrationTest.java'
+        }
+        resources.srcDir file('src/integration-test/resources')
+    }
 }
 
 configurations {
@@ -95,6 +105,9 @@ configurations {
     integrationTestMultiStorageImplementation.extendsFrom testImplementation
     integrationTestMultiStorageRuntimeOnly.extendsFrom testRuntimeOnly
     integrationTestMultiStorageCompileOnly.extendsFrom testCompileOnly
+    integrationTestTwoPhaseConsesnsusCommitImplementation.extendsFrom testImplementation
+    integrationTestTwoPhaseConsesnsusCommitRuntimeOnly.extendsFrom testRuntimeOnly
+    integrationTestTwoPhaseConsesnsusCommitCompileOnly.extendsFrom testCompileOnly
 }
 
 dependencies {
@@ -105,6 +118,7 @@ dependencies {
     implementation group: 'com.datastax.cassandra', name: 'cassandra-driver-core', version: "${cassandraDriverVersion}"
     implementation group: 'com.azure', name: 'azure-cosmos', version: "${azureCosmosVersion}"
     implementation group: 'org.jooq', name: 'jooq', version: "${jooqVersion}"
+    implementation group: 'software.amazon.awssdk', name: 'applicationautoscaling', version: "${awssdkVersion}"
     implementation group: 'software.amazon.awssdk', name: 'dynamodb', version: "${awssdkVersion}"
     implementation group: 'software.amazon.awssdk', name: 'core', version: "${awssdkVersion}"
     implementation group: 'org.apache.commons', name: 'commons-dbcp2', version: "${commonsDbcp2Version}"
@@ -122,6 +136,10 @@ dependencies {
     // for Error Prone
     errorprone "com.google.errorprone:error_prone_core:${errorproneVersion}"
     errorproneJavac "com.google.errorprone:javac:${errorproneJavacVersion}"
+}
+
+javadoc {
+    title = "Scalar DB"
 }
 
 task integrationTestCassandra(type: Test) {
@@ -170,6 +188,14 @@ task integrationTestMultiStorage(type: Test) {
     group = 'verification'
     testClassesDirs = sourceSets.integrationTestMultiStorage.output.classesDirs
     classpath = sourceSets.integrationTestMultiStorage.runtimeClasspath
+    outputs.upToDateWhen { false }  // ensures integration tests are run every time when called
+}
+
+task integrationTestTwoPhaseConsesnsusCommit(type: Test) {
+    description = 'Runs the integration tests for two-phase consensus commit.'
+    group = 'verification'
+    testClassesDirs = sourceSets.integrationTestTwoPhaseConsesnsusCommit.output.classesDirs
+    classpath = sourceSets.integrationTestTwoPhaseConsesnsusCommit.runtimeClasspath
     outputs.upToDateWhen { false }  // ensures integration tests are run every time when called
 }
 

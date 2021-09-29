@@ -4,9 +4,11 @@ import com.azure.cosmos.CosmosClient;
 import com.azure.cosmos.CosmosException;
 import com.scalar.db.api.Mutation;
 import com.scalar.db.api.Operation;
+import com.scalar.db.api.TableMetadata;
 import com.scalar.db.exception.storage.ExecutionException;
 import com.scalar.db.exception.storage.NoMutationException;
 import com.scalar.db.exception.storage.RetriableExecutionException;
+import com.scalar.db.storage.common.TableMetadataManager;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -19,9 +21,9 @@ import org.slf4j.LoggerFactory;
 @ThreadSafe
 public abstract class MutateStatementHandler extends StatementHandler {
   private static final Logger LOGGER = LoggerFactory.getLogger(MutateStatementHandler.class);
-  private final String MUTATION_STORED_PROCEDURE = "mutate.js";
+  private static final String MUTATION_STORED_PROCEDURE = "mutate.js";
 
-  public MutateStatementHandler(CosmosClient client, CosmosTableMetadataManager metadataManager) {
+  public MutateStatementHandler(CosmosClient client, TableMetadataManager metadataManager) {
     super(client, metadataManager);
   }
 
@@ -29,9 +31,7 @@ public abstract class MutateStatementHandler extends StatementHandler {
   @Nonnull
   public List<Record> handle(Operation operation) throws ExecutionException {
     try {
-      List<Record> results = execute(operation);
-
-      return results;
+      return execute(operation);
     } catch (CosmosException e) {
       throwException(e);
     }
@@ -39,8 +39,9 @@ public abstract class MutateStatementHandler extends StatementHandler {
     return Collections.emptyList();
   }
 
-  protected void executeStoredProcedure(Mutation mutation) throws CosmosException {
-    CosmosMutation cosmosMutation = new CosmosMutation(mutation, metadataManager);
+  protected void executeStoredProcedure(Mutation mutation, TableMetadata tableMetadata)
+      throws CosmosException {
+    CosmosMutation cosmosMutation = new CosmosMutation(mutation, tableMetadata);
     List<Object> args = new ArrayList<>();
     args.add(1);
     args.add(cosmosMutation.getMutationType().ordinal());

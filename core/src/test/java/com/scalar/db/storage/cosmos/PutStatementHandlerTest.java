@@ -3,8 +3,9 @@ package com.scalar.db.storage.cosmos;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -23,15 +24,18 @@ import com.scalar.db.api.Put;
 import com.scalar.db.api.PutIfExists;
 import com.scalar.db.api.PutIfNotExists;
 import com.scalar.db.api.TableMetadata;
+import com.scalar.db.exception.storage.ExecutionException;
 import com.scalar.db.exception.storage.NoMutationException;
 import com.scalar.db.exception.storage.RetriableExecutionException;
 import com.scalar.db.io.Key;
+import com.scalar.db.storage.common.TableMetadataManager;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -51,14 +55,16 @@ public class PutStatementHandlerTest {
   @Mock private CosmosClient client;
   @Mock private CosmosDatabase database;
   @Mock private CosmosContainer container;
-  @Mock private CosmosTableMetadataManager metadataManager;
+  @Mock private TableMetadataManager metadataManager;
   @Mock private TableMetadata metadata;
   @Mock private CosmosScripts cosmosScripts;
   @Mock private CosmosStoredProcedure storedProcedure;
   @Mock private CosmosStoredProcedureResponse spResponse;
 
+  @Captor ArgumentCaptor<List<Object>> captor;
+
   @Before
-  public void setUp() throws Exception {
+  public void setUp() throws ExecutionException {
     MockitoAnnotations.initMocks(this);
 
     handler = new PutStatementHandler(client, metadataManager);
@@ -73,14 +79,11 @@ public class PutStatementHandlerTest {
   private Put preparePut() {
     Key partitionKey = new Key(ANY_NAME_1, ANY_TEXT_1);
     Key clusteringKey = new Key(ANY_NAME_2, ANY_TEXT_2);
-    Put put =
-        new Put(partitionKey, clusteringKey)
-            .forNamespace(ANY_KEYSPACE_NAME)
-            .forTable(ANY_TABLE_NAME)
-            .withValue(ANY_NAME_3, ANY_INT_1)
-            .withValue(ANY_NAME_4, ANY_INT_2);
-
-    return put;
+    return new Put(partitionKey, clusteringKey)
+        .forNamespace(ANY_KEYSPACE_NAME)
+        .forTable(ANY_TABLE_NAME)
+        .withValue(ANY_NAME_3, ANY_INT_1)
+        .withValue(ANY_NAME_4, ANY_INT_2);
   }
 
   @Test
@@ -88,25 +91,20 @@ public class PutStatementHandlerTest {
     // Arrange
     when(container.getScripts()).thenReturn(cosmosScripts);
     when(cosmosScripts.getStoredProcedure(anyString())).thenReturn(storedProcedure);
-    when(storedProcedure.execute(any(List.class), any(CosmosStoredProcedureRequestOptions.class)))
+    when(storedProcedure.execute(anyList(), any(CosmosStoredProcedureRequestOptions.class)))
         .thenReturn(spResponse);
     when(spResponse.getResponseAsString()).thenReturn("true");
 
     Put put = preparePut();
-    CosmosMutation cosmosMutation = new CosmosMutation(put, metadataManager);
+    CosmosMutation cosmosMutation = new CosmosMutation(put, metadata);
     Record record = cosmosMutation.makeRecord();
     String query = cosmosMutation.makeConditionalQuery();
 
     // Act Assert
-    assertThatCode(
-            () -> {
-              handler.handle(put);
-            })
-        .doesNotThrowAnyException();
+    assertThatCode(() -> handler.handle(put)).doesNotThrowAnyException();
 
     // Assert
     verify(cosmosScripts).getStoredProcedure("mutate.js");
-    ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
     verify(storedProcedure)
         .execute(captor.capture(), any(CosmosStoredProcedureRequestOptions.class));
     assertThat(captor.getValue().get(0)).isEqualTo(1);
@@ -120,7 +118,7 @@ public class PutStatementHandlerTest {
     // Arrange
     when(container.getScripts()).thenReturn(cosmosScripts);
     when(cosmosScripts.getStoredProcedure(anyString())).thenReturn(storedProcedure);
-    when(storedProcedure.execute(any(List.class), any(CosmosStoredProcedureRequestOptions.class)))
+    when(storedProcedure.execute(anyList(), any(CosmosStoredProcedureRequestOptions.class)))
         .thenReturn(spResponse);
     when(spResponse.getResponseAsString()).thenReturn("true");
 
@@ -131,20 +129,15 @@ public class PutStatementHandlerTest {
             .forTable(ANY_TABLE_NAME)
             .withValue(ANY_NAME_3, ANY_INT_1)
             .withValue(ANY_NAME_4, ANY_INT_2);
-    CosmosMutation cosmosMutation = new CosmosMutation(put, metadataManager);
+    CosmosMutation cosmosMutation = new CosmosMutation(put, metadata);
     Record record = cosmosMutation.makeRecord();
     String query = cosmosMutation.makeConditionalQuery();
 
     // Act Assert
-    assertThatCode(
-            () -> {
-              handler.handle(put);
-            })
-        .doesNotThrowAnyException();
+    assertThatCode(() -> handler.handle(put)).doesNotThrowAnyException();
 
     // Assert
     verify(cosmosScripts).getStoredProcedure("mutate.js");
-    ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
     verify(storedProcedure)
         .execute(captor.capture(), any(CosmosStoredProcedureRequestOptions.class));
     assertThat(captor.getValue().get(0)).isEqualTo(1);
@@ -161,17 +154,13 @@ public class PutStatementHandlerTest {
     CosmosException toThrow = mock(CosmosException.class);
     doThrow(toThrow)
         .when(storedProcedure)
-        .execute(any(List.class), any(CosmosStoredProcedureRequestOptions.class));
+        .execute(anyList(), any(CosmosStoredProcedureRequestOptions.class));
     when(toThrow.getSubStatusCode()).thenReturn(CosmosErrorCode.PRECONDITION_FAILED.get());
 
     Put put = preparePut();
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              handler.handle(put);
-            })
-        .isInstanceOf(NoMutationException.class);
+    assertThatThrownBy(() -> handler.handle(put)).isInstanceOf(NoMutationException.class);
   }
 
   @Test
@@ -179,25 +168,20 @@ public class PutStatementHandlerTest {
     // Arrange
     when(container.getScripts()).thenReturn(cosmosScripts);
     when(cosmosScripts.getStoredProcedure(anyString())).thenReturn(storedProcedure);
-    when(storedProcedure.execute(any(List.class), any(CosmosStoredProcedureRequestOptions.class)))
+    when(storedProcedure.execute(anyList(), any(CosmosStoredProcedureRequestOptions.class)))
         .thenReturn(spResponse);
     when(spResponse.getResponseAsString()).thenReturn("true");
 
     Put put = preparePut().withCondition(new PutIfNotExists());
-    CosmosMutation cosmosMutation = new CosmosMutation(put, metadataManager);
+    CosmosMutation cosmosMutation = new CosmosMutation(put, metadata);
     Record record = cosmosMutation.makeRecord();
     String query = cosmosMutation.makeConditionalQuery();
 
     // Act Assert
-    assertThatCode(
-            () -> {
-              handler.handle(put);
-            })
-        .doesNotThrowAnyException();
+    assertThatCode(() -> handler.handle(put)).doesNotThrowAnyException();
 
     // Assert
     verify(cosmosScripts).getStoredProcedure("mutate.js");
-    ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
     verify(storedProcedure)
         .execute(captor.capture(), any(CosmosStoredProcedureRequestOptions.class));
     assertThat(captor.getValue().get(0)).isEqualTo(1);
@@ -212,24 +196,19 @@ public class PutStatementHandlerTest {
     // Arrange
     when(container.getScripts()).thenReturn(cosmosScripts);
     when(cosmosScripts.getStoredProcedure(anyString())).thenReturn(storedProcedure);
-    when(storedProcedure.execute(any(List.class), any(CosmosStoredProcedureRequestOptions.class)))
+    when(storedProcedure.execute(anyList(), any(CosmosStoredProcedureRequestOptions.class)))
         .thenReturn(spResponse);
 
     Put put = preparePut().withCondition(new PutIfExists());
-    CosmosMutation cosmosMutation = new CosmosMutation(put, metadataManager);
+    CosmosMutation cosmosMutation = new CosmosMutation(put, metadata);
     Record record = cosmosMutation.makeRecord();
     String query = cosmosMutation.makeConditionalQuery();
 
     // Act Assert
-    assertThatCode(
-            () -> {
-              handler.handle(put);
-            })
-        .doesNotThrowAnyException();
+    assertThatCode(() -> handler.handle(put)).doesNotThrowAnyException();
 
     // Assert
     verify(cosmosScripts).getStoredProcedure("mutate.js");
-    ArgumentCaptor<List> captor = ArgumentCaptor.forClass(List.class);
     verify(storedProcedure)
         .execute(captor.capture(), any(CosmosStoredProcedureRequestOptions.class));
     assertThat(captor.getValue().get(0)).isEqualTo(1);
@@ -246,17 +225,13 @@ public class PutStatementHandlerTest {
     CosmosException toThrow = mock(CosmosException.class);
     doThrow(toThrow)
         .when(storedProcedure)
-        .execute(any(List.class), any(CosmosStoredProcedureRequestOptions.class));
+        .execute(anyList(), any(CosmosStoredProcedureRequestOptions.class));
     when(toThrow.getSubStatusCode()).thenReturn(CosmosErrorCode.PRECONDITION_FAILED.get());
 
     Put put = preparePut().withCondition(new PutIfExists());
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              handler.handle(put);
-            })
-        .isInstanceOf(NoMutationException.class);
+    assertThatThrownBy(() -> handler.handle(put)).isInstanceOf(NoMutationException.class);
   }
 
   @Test
@@ -267,16 +242,13 @@ public class PutStatementHandlerTest {
     CosmosException toThrow = mock(CosmosException.class);
     doThrow(toThrow)
         .when(storedProcedure)
-        .execute(any(List.class), any(CosmosStoredProcedureRequestOptions.class));
+        .execute(anyList(), any(CosmosStoredProcedureRequestOptions.class));
     when(toThrow.getSubStatusCode()).thenReturn(CosmosErrorCode.RETRY_WITH.get());
 
     Put put = preparePut().withCondition(new PutIfExists());
 
     // Act Assert
-    assertThatThrownBy(
-            () -> {
-              handler.handle(put);
-            })
+    assertThatThrownBy(() -> handler.handle(put))
         .isInstanceOf(RetriableExecutionException.class)
         .hasCause(toThrow);
   }

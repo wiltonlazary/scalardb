@@ -4,11 +4,14 @@ import com.scalar.db.api.Operation;
 import com.scalar.db.api.Put;
 import com.scalar.db.api.PutIfExists;
 import com.scalar.db.api.PutIfNotExists;
+import com.scalar.db.api.TableMetadata;
 import com.scalar.db.exception.storage.ExecutionException;
 import com.scalar.db.exception.storage.NoMutationException;
+import com.scalar.db.storage.common.TableMetadataManager;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import javax.annotation.Nonnull;
 import javax.annotation.concurrent.ThreadSafe;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
@@ -24,17 +27,19 @@ import software.amazon.awssdk.services.dynamodb.model.UpdateItemRequest;
 @ThreadSafe
 public class PutStatementHandler extends StatementHandler {
 
-  public PutStatementHandler(DynamoDbClient client, DynamoTableMetadataManager metadataManager) {
+  public PutStatementHandler(DynamoDbClient client, TableMetadataManager metadataManager) {
     super(client, metadataManager);
   }
 
+  @Nonnull
   @Override
   public List<Map<String, AttributeValue>> handle(Operation operation) throws ExecutionException {
     checkArgument(operation, Put.class);
     Put put = (Put) operation;
 
+    TableMetadata tableMetadata = metadataManager.getTableMetadata(operation);
     try {
-      execute(put);
+      execute(put, tableMetadata);
     } catch (ConditionalCheckFailedException e) {
       throw new NoMutationException("no mutation was applied.", e);
     } catch (DynamoDbException e) {
@@ -44,8 +49,8 @@ public class PutStatementHandler extends StatementHandler {
     return Collections.emptyList();
   }
 
-  private void execute(Put put) {
-    DynamoMutation dynamoMutation = new DynamoMutation(put, metadataManager);
+  private void execute(Put put, TableMetadata tableMetadata) {
+    DynamoMutation dynamoMutation = new DynamoMutation(put, tableMetadata);
     String expression;
     String condition = null;
     Map<String, String> columnMap;

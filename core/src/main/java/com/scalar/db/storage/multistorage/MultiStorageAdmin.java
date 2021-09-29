@@ -10,14 +10,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * An implementation with multi-storage for {@link DistributedStorageAdmin}.
  *
- * <p>This implementation holds multiple DistributedStorageAdmin instances. It chooses a instance on
- * the basis of the specified configuration and a given operation. If there is a conflict between a
- * table mapping and a namespace mapping, it prefers the table mapping because table mappings are
+ * <p>This implementation holds multiple DistributedStorageAdmin instances. It chooses an instance
+ * on the basis of the specified configuration and a given operation. If there is a conflict between
+ * a table mapping and a namespace mapping, it prefers the table mapping because table mappings are
  * more specific than namespace mappings.
  *
  * @author Toshihiro Suzuki
@@ -70,6 +71,28 @@ public class MultiStorageAdmin implements DistributedStorageAdmin {
   }
 
   @Override
+  public void createNamespace(String namespace, Map<String, String> options)
+      throws ExecutionException {
+    getAdmin(namespace).createNamespace(namespace, options);
+  }
+
+  @Override
+  public void createNamespace(String namespace) throws ExecutionException {
+    getAdmin(namespace).createNamespace(namespace);
+  }
+
+  @Override
+  public void createNamespace(String namespace, boolean ifNotExists) throws ExecutionException {
+    getAdmin(namespace).createNamespace(namespace, ifNotExists);
+  }
+
+  @Override
+  public void createNamespace(String namespace, boolean ifNotExists, Map<String, String> options)
+      throws ExecutionException {
+    getAdmin(namespace).createNamespace(namespace, ifNotExists, options);
+  }
+
+  @Override
   public void createTable(
       String namespace, String table, TableMetadata metadata, Map<String, String> options)
       throws ExecutionException {
@@ -77,8 +100,37 @@ public class MultiStorageAdmin implements DistributedStorageAdmin {
   }
 
   @Override
+  public void createTable(String namespace, String table, TableMetadata metadata)
+      throws ExecutionException {
+    getAdmin(namespace, table).createTable(namespace, table, metadata);
+  }
+
+  @Override
+  public void createTable(
+      String namespace, String table, TableMetadata metadata, boolean ifNotExists)
+      throws ExecutionException {
+    getAdmin(namespace, table).createTable(namespace, table, metadata, ifNotExists);
+  }
+
+  @Override
+  public void createTable(
+      String namespace,
+      String table,
+      TableMetadata metadata,
+      boolean ifNotExists,
+      Map<String, String> options)
+      throws ExecutionException {
+    getAdmin(namespace, table).createTable(namespace, table, metadata, ifNotExists, options);
+  }
+
+  @Override
   public void dropTable(String namespace, String table) throws ExecutionException {
     getAdmin(namespace, table).dropTable(namespace, table);
+  }
+
+  @Override
+  public void dropNamespace(String namespace) throws ExecutionException {
+    getAdmin(namespace).dropNamespace(namespace);
   }
 
   @Override
@@ -91,14 +143,28 @@ public class MultiStorageAdmin implements DistributedStorageAdmin {
     return getAdmin(namespace, table).getTableMetadata(namespace, table);
   }
 
+  @Override
+  public Set<String> getNamespaceTableNames(String namespace) throws ExecutionException {
+    return getAdmin(namespace).getNamespaceTableNames(namespace);
+  }
+
+  @Override
+  public boolean namespaceExists(String namespace) throws ExecutionException {
+    return getAdmin(namespace).namespaceExists(namespace);
+  }
+
+  private DistributedStorageAdmin getAdmin(String namespace) {
+    DistributedStorageAdmin admin = namespaceAdminMap.get(namespace);
+    return admin != null ? admin : defaultAdmin;
+  }
+
   private DistributedStorageAdmin getAdmin(String namespace, String table) {
     String fullTaleName = namespace + "." + table;
     DistributedStorageAdmin admin = tableAdminMap.get(fullTaleName);
     if (admin != null) {
       return admin;
     }
-    admin = namespaceAdminMap.get(namespace);
-    return admin != null ? admin : defaultAdmin;
+    return getAdmin(namespace);
   }
 
   @Override
