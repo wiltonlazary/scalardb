@@ -29,38 +29,52 @@ public class ConsensusCommitAdmin {
           .build();
 
   private final DistributedStorageAdmin admin;
-
-  @SuppressWarnings("unused")
-  private final ConsensusCommitConfig config;
+  private final String coordinatorNamespace;
 
   public ConsensusCommitAdmin(DistributedStorageAdmin admin, ConsensusCommitConfig config) {
     this.admin = admin;
-    this.config = config;
+    coordinatorNamespace = config.getCoordinatorNamespace().orElse(Coordinator.NAMESPACE);
   }
 
   /**
-   * Creates a coordinator table if it does not exist.
+   * Creates a coordinator namespace and table if it does not exist.
    *
    * @throws ExecutionException if the operation failed
    */
   public void createCoordinatorTable() throws ExecutionException {
-    admin.createTable(
-        Coordinator.NAMESPACE,
-        Coordinator.TABLE,
-        Coordinator.TABLE_METADATA,
-        true,
-        Collections.emptyMap());
+    admin.createNamespace(coordinatorNamespace, true);
+    admin.createTable(coordinatorNamespace, Coordinator.TABLE, Coordinator.TABLE_METADATA, true);
   }
 
   /**
-   * Creates a coordinator table if it does not exist.
+   * Creates a coordinator namespace and table if it does not exist.
    *
-   * @param options options to create
+   * @param options options to create namespace and table
    * @throws ExecutionException if the operation failed
    */
   public void createCoordinatorTable(Map<String, String> options) throws ExecutionException {
+    admin.createNamespace(coordinatorNamespace, true, options);
     admin.createTable(
-        Coordinator.NAMESPACE, Coordinator.TABLE, Coordinator.TABLE_METADATA, true, options);
+        coordinatorNamespace, Coordinator.TABLE, Coordinator.TABLE_METADATA, true, options);
+  }
+
+  /**
+   * Truncates a coordinator table.
+   *
+   * @throws ExecutionException if the operation failed
+   */
+  public void truncateCoordinatorTable() throws ExecutionException {
+    admin.truncateTable(coordinatorNamespace, Coordinator.TABLE);
+  }
+
+  /**
+   * Drops a coordinator namespace and table.
+   *
+   * @throws ExecutionException if the operation failed
+   */
+  public void dropCoordinatorTable() throws ExecutionException {
+    admin.dropTable(coordinatorNamespace, Coordinator.TABLE);
+    admin.dropNamespace(coordinatorNamespace);
   }
 
   /**

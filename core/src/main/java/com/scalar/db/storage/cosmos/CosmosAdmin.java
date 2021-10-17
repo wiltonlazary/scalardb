@@ -9,6 +9,8 @@ import com.azure.cosmos.CosmosContainer;
 import com.azure.cosmos.CosmosDatabase;
 import com.azure.cosmos.CosmosException;
 import com.azure.cosmos.implementation.NotFoundException;
+import com.azure.cosmos.models.CompositePath;
+import com.azure.cosmos.models.CompositePathSortOrder;
 import com.azure.cosmos.models.CosmosContainerProperties;
 import com.azure.cosmos.models.CosmosItemRequestOptions;
 import com.azure.cosmos.models.CosmosQueryRequestOptions;
@@ -23,11 +25,9 @@ import com.google.inject.Inject;
 import com.scalar.db.api.DistributedStorageAdmin;
 import com.scalar.db.api.Scan;
 import com.scalar.db.api.TableMetadata;
-import com.scalar.db.config.DatabaseConfig;
 import com.scalar.db.exception.storage.ExecutionException;
 import com.scalar.db.exception.storage.UnsupportedTypeException;
 import com.scalar.db.io.DataType;
-import com.scalar.db.util.Utility;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -36,9 +36,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.concurrent.ThreadSafe;
@@ -54,20 +54,19 @@ public class CosmosAdmin implements DistributedStorageAdmin {
   public static final String METADATA_CONTAINER = "metadata";
   private static final String ID = "id";
   private static final String CONCATENATED_PARTITION_KEY = "concatenatedPartitionKey";
-  private static final String CONTAINER_PARTITION_KEY = "/" + CONCATENATED_PARTITION_KEY;
-  private static final String PARTITION_KEY_PATH = CONTAINER_PARTITION_KEY + "/?";
-  private static final String CLUSTERING_KEY_PATH = "/clusteringKey/*";
-  private static final String SECONDARY_INDEX_KEY_PATH = "/values/";
+  private static final String PARTITION_KEY_PATH = "/" + CONCATENATED_PARTITION_KEY;
+  private static final String CLUSTERING_KEY_PATH_PREFIX = "/clusteringKey/";
+  private static final String SECONDARY_INDEX_KEY_PATH_PREFIX = "/values/";
   private static final String EXCLUDED_PATH = "/*";
   private static final String STORED_PROCEDURE_FILE_NAME = "mutate.js";
   private static final String STORED_PROCEDURE_PATH =
       "cosmosdb_stored_procedure/" + STORED_PROCEDURE_FILE_NAME;
 
   private final CosmosClient client;
-  private final Optional<String> databasePrefix;
+  private final String metadataDatabase;
 
   @Inject
-  public CosmosAdmin(DatabaseConfig config) {
+  public CosmosAdmin(CosmosConfig config) {
     client =
         new CosmosClientBuilder()
             .endpoint(config.getContactPoints().get(0))
@@ -75,12 +74,12 @@ public class CosmosAdmin implements DistributedStorageAdmin {
             .directMode()
             .consistencyLevel(ConsistencyLevel.STRONG)
             .buildClient();
-    databasePrefix = config.getNamespacePrefix();
+    metadataDatabase = config.getTableMetadataDatabase().orElse(METADATA_DATABASE);
   }
 
-  public CosmosAdmin(CosmosClient client, DatabaseConfig config) {
+  public CosmosAdmin(CosmosClient client, CosmosConfig config) {
     this.client = client;
-    databasePrefix = config.getNamespacePrefix();
+    metadataDatabase = config.getTableMetadataDatabase().orElse(METADATA_DATABASE);
   }
 
   @Override
@@ -88,6 +87,7 @@ public class CosmosAdmin implements DistributedStorageAdmin {
       String namespace, String table, TableMetadata metadata, Map<String, String> options)
       throws ExecutionException {
     try {
+      checkMetadata(metadata);
       createContainer(namespace, table, metadata);
       addTableMetadata(namespace, table, metadata);
     } catch (RuntimeException e) {
@@ -95,12 +95,20 @@ public class CosmosAdmin implements DistributedStorageAdmin {
     }
   }
 
+  private void checkMetadata(TableMetadata metadata) throws ExecutionException {
+    for (String clusteringKeyName : metadata.getClusteringKeyNames()) {
+      if (metadata.getColumnDataType(clusteringKeyName) == DataType.BLOB) {
+        throw new ExecutionException("BLOB type is not supported for clustering keys in Cosmos DB");
+      }
+    }
+  }
+
   private void createContainer(String database, String table, TableMetadata metadata)
       throws ExecutionException {
-    if (!databaseExists(fullDatabase(database))) {
+    if (!databaseExists(database)) {
       throw new ExecutionException("the database does not exists");
     }
-    CosmosDatabase cosmosDatabase = client.getDatabase(fullDatabase(database));
+    CosmosDatabase cosmosDatabase = client.getDatabase(database);
     CosmosContainerProperties properties = computeContainerProperties(table, metadata);
     cosmosDatabase.createContainer(properties);
 
@@ -132,17 +140,46 @@ public class CosmosAdmin implements DistributedStorageAdmin {
   private CosmosContainerProperties computeContainerProperties(
       String table, TableMetadata metadata) {
     IndexingPolicy indexingPolicy = new IndexingPolicy();
-    ArrayList<IncludedPath> paths = new ArrayList<>();
-    paths.add(new IncludedPath(PARTITION_KEY_PATH));
-    paths.add(new IncludedPath(CLUSTERING_KEY_PATH));
+    List<IncludedPath> paths = new ArrayList<>();
+
+    if (metadata.getClusteringKeyNames().isEmpty()) {
+      paths.add(new IncludedPath(PARTITION_KEY_PATH + "/?"));
+    } else {
+      // Add a composite index when we have clustering keys
+      List<CompositePath> compositePaths = new ArrayList<>();
+
+      // Add concatenated partition key to the composite path first
+      CompositePath partitionKeyCompositePath = new CompositePath();
+      partitionKeyCompositePath.setPath(PARTITION_KEY_PATH);
+      partitionKeyCompositePath.setOrder(CompositePathSortOrder.ASCENDING);
+      compositePaths.add(partitionKeyCompositePath);
+
+      // Then, add clustering keys to the composite path
+      metadata
+          .getClusteringKeyNames()
+          .forEach(
+              c -> {
+                CompositePath compositePath = new CompositePath();
+                compositePath.setPath(CLUSTERING_KEY_PATH_PREFIX + c);
+                // Always ASCENDING fow now
+                compositePath.setOrder(CompositePathSortOrder.ASCENDING);
+                compositePaths.add(compositePath);
+              });
+
+      indexingPolicy.setCompositeIndexes(Collections.singletonList(compositePaths));
+    }
+
     paths.addAll(
         metadata.getSecondaryIndexNames().stream()
-            .map(index -> new IncludedPath(SECONDARY_INDEX_KEY_PATH + index + "/?"))
+            .map(index -> new IncludedPath(SECONDARY_INDEX_KEY_PATH_PREFIX + index + "/?"))
             .collect(Collectors.toList()));
-    indexingPolicy.setIncludedPaths(paths);
+
+    if (!paths.isEmpty()) {
+      indexingPolicy.setIncludedPaths(paths);
+    }
     indexingPolicy.setExcludedPaths(Collections.singletonList(new ExcludedPath(EXCLUDED_PATH)));
 
-    return new CosmosContainerProperties(table, CONTAINER_PARTITION_KEY)
+    return new CosmosContainerProperties(table, PARTITION_KEY_PATH)
         .setIndexingPolicy(indexingPolicy);
   }
 
@@ -152,16 +189,14 @@ public class CosmosAdmin implements DistributedStorageAdmin {
       createMetadataDatabaseAndContainerIfNotExists();
 
       CosmosTableMetadata cosmosTableMetadata =
-          convertToCosmosTableMetadata(
-              getFullTableName(databasePrefix, namespace, table), metadata);
-      getContainer().upsertItem(cosmosTableMetadata);
+          convertToCosmosTableMetadata(getFullTableName(namespace, table), metadata);
+      getMetadataContainer().upsertItem(cosmosTableMetadata);
     } catch (RuntimeException e) {
       throw new ExecutionException("adding the table metadata failed", e);
     }
   }
 
   private void createMetadataDatabaseAndContainerIfNotExists() {
-    String metadataDatabase = fullMetadataDatabase();
     ThroughputProperties manualThroughput =
         ThroughputProperties.createManualThroughput(Integer.parseInt(DEFAULT_REQUEST_UNIT));
     client.createDatabaseIfNotExists(metadataDatabase, manualThroughput);
@@ -170,8 +205,8 @@ public class CosmosAdmin implements DistributedStorageAdmin {
     client.getDatabase(metadataDatabase).createContainerIfNotExists(containerProperties);
   }
 
-  private CosmosContainer getContainer() {
-    return client.getDatabase(fullMetadataDatabase()).getContainer(METADATA_CONTAINER);
+  private CosmosContainer getMetadataContainer() {
+    return client.getDatabase(metadataDatabase).getContainer(METADATA_CONTAINER);
   }
 
   private CosmosTableMetadata convertToCosmosTableMetadata(
@@ -197,7 +232,7 @@ public class CosmosAdmin implements DistributedStorageAdmin {
   public void createNamespace(String namespace, Map<String, String> options)
       throws ExecutionException {
     try {
-      client.createDatabase(fullDatabase(namespace), calculateThroughput(options));
+      client.createDatabase(namespace, calculateThroughput(options));
     } catch (RuntimeException e) {
       throw new ExecutionException("creating the database failed", e);
     }
@@ -205,11 +240,10 @@ public class CosmosAdmin implements DistributedStorageAdmin {
 
   @Override
   public void dropTable(String namespace, String table) throws ExecutionException {
-    String fullDatabase = fullDatabase(namespace);
-    if (!databaseExists(fullDatabase)) {
+    if (!databaseExists(namespace)) {
       throw new ExecutionException("the database does not exist");
     }
-    CosmosDatabase database = client.getDatabase(fullDatabase);
+    CosmosDatabase database = client.getDatabase(namespace);
     if (!containerExists(database, table)) {
       throw new ExecutionException("the container does not exist");
     }
@@ -223,13 +257,13 @@ public class CosmosAdmin implements DistributedStorageAdmin {
   }
 
   private void deleteTableMetadata(String namespace, String table) throws ExecutionException {
-    String fullTableName = getFullTableName(databasePrefix, namespace, table);
+    String fullTableName = getFullTableName(namespace, table);
     try {
-      getContainer()
+      getMetadataContainer()
           .deleteItem(
               fullTableName, new PartitionKey(fullTableName), new CosmosItemRequestOptions());
       // Delete the metadata container and table if there is no more metadata stored
-      if (!getContainer()
+      if (!getMetadataContainer()
           .queryItems(
               "SELECT 1 FROM " + METADATA_CONTAINER + " OFFSET 0 LIMIT 1",
               new CosmosQueryRequestOptions(),
@@ -237,8 +271,8 @@ public class CosmosAdmin implements DistributedStorageAdmin {
           .stream()
           .findFirst()
           .isPresent()) {
-        getContainer().delete();
-        client.getDatabase(fullMetadataDatabase()).delete();
+        getMetadataContainer().delete();
+        client.getDatabase(metadataDatabase).delete();
       }
     } catch (RuntimeException e) {
       throw new ExecutionException("deleting the table metadata failed", e);
@@ -247,13 +281,12 @@ public class CosmosAdmin implements DistributedStorageAdmin {
 
   @Override
   public void dropNamespace(String namespace) throws ExecutionException {
-    String fullDatabase = fullDatabase(namespace);
-    if (!databaseExists(fullDatabase)) {
+    if (!databaseExists(namespace)) {
       throw new ExecutionException("the database does not exist");
     }
 
     try {
-      client.getDatabase(fullDatabase).delete();
+      client.getDatabase(namespace).delete();
     } catch (RuntimeException e) {
       throw new ExecutionException("deleting the database failed", e);
     }
@@ -261,9 +294,8 @@ public class CosmosAdmin implements DistributedStorageAdmin {
 
   @Override
   public void truncateTable(String namespace, String table) throws ExecutionException {
-    String fullDatabase = fullDatabase(namespace);
     try {
-      CosmosDatabase database = client.getDatabase(fullDatabase);
+      CosmosDatabase database = client.getDatabase(namespace);
       CosmosContainer container = database.getContainer(table);
 
       CosmosPagedIterable<Record> records =
@@ -285,7 +317,7 @@ public class CosmosAdmin implements DistributedStorageAdmin {
   @Override
   public TableMetadata getTableMetadata(String namespace, String table) throws ExecutionException {
     try {
-      String fullName = getFullTableName(databasePrefix, namespace, table);
+      String fullName = getFullTableName(namespace, table);
       CosmosTableMetadata cosmosTableMetadata = readMetadata(fullName);
       if (cosmosTableMetadata == null) {
         return null;
@@ -298,7 +330,7 @@ public class CosmosAdmin implements DistributedStorageAdmin {
 
   private CosmosTableMetadata readMetadata(String fullName) {
     try {
-      return getContainer()
+      return getMetadataContainer()
           .readItem(fullName, new PartitionKey(fullName), CosmosTableMetadata.class)
           .getItem();
     } catch (NotFoundException e) {
@@ -343,14 +375,6 @@ public class CosmosAdmin implements DistributedStorageAdmin {
     }
   }
 
-  private String fullDatabase(String database) {
-    return Utility.getFullNamespaceName(databasePrefix, database);
-  }
-
-  private String fullMetadataDatabase() {
-    return Utility.getFullNamespaceName(databasePrefix, METADATA_DATABASE);
-  }
-
   @Override
   public void close() {
     client.close();
@@ -368,7 +392,7 @@ public class CosmosAdmin implements DistributedStorageAdmin {
 
   @Override
   public boolean namespaceExists(String namespace) throws ExecutionException {
-    return databaseExists(fullDatabase(namespace));
+    return databaseExists(namespace);
   }
 
   private boolean databaseExists(String id) throws ExecutionException {
@@ -390,22 +414,21 @@ public class CosmosAdmin implements DistributedStorageAdmin {
       if (!metadataContainerExists()) {
         return Collections.emptySet();
       }
-      String fullDatabase = fullDatabase(namespace);
       String selectAllDatabaseContainer =
           "SELECT * FROM "
               + METADATA_CONTAINER
               + " WHERE "
               + METADATA_CONTAINER
               + ".id LIKE '"
-              + fullDatabase
+              + namespace
               + ".%'";
-      return getContainer()
+      return getMetadataContainer()
           .queryItems(
               selectAllDatabaseContainer,
               new CosmosQueryRequestOptions(),
               CosmosTableMetadata.class)
           .stream()
-          .map(tableMetadata -> tableMetadata.getId().replaceFirst("^" + fullDatabase + ".", ""))
+          .map(tableMetadata -> tableMetadata.getId().replaceFirst("^" + namespace + ".", ""))
           .collect(Collectors.toSet());
     } catch (RuntimeException e) {
       throw new ExecutionException("retrieving the container names of the database failed", e);
@@ -414,7 +437,7 @@ public class CosmosAdmin implements DistributedStorageAdmin {
 
   private boolean metadataContainerExists() {
     try {
-      client.getDatabase(fullMetadataDatabase()).getContainer(METADATA_CONTAINER).read();
+      client.getDatabase(metadataDatabase).getContainer(METADATA_CONTAINER).read();
     } catch (RuntimeException e) {
       if (e instanceof CosmosException
           && ((CosmosException) e).getStatusCode() == CosmosErrorCode.NOT_FOUND.get()) {
